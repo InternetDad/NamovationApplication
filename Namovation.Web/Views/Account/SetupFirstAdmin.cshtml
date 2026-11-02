@@ -1,0 +1,16 @@
+@model Namovation.Web.Models.FirstAdminInput
+@{ ViewData["Title"] = "Create first administrator"; }
+<div class="form-panel">
+    <p class="eyebrow">ONE-TIME LOCAL SETUP</p>
+    <h1>Create the first administrator</h1>
+    <p class="text-secondary">This page is available only in Development and only until the first Admin account is created. The password is stored as a secure Identity hash.</p>
+    <form asp-action="SetupFirstAdmin" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <div class="mb-3"><label asp-for="Email" class="form-label">Email</label><input asp-for="Email" class="form-control" autocomplete="username"/><span asp-validation-for="Email" class="text-danger"></span></div>
+        <div class="mb-3"><label asp-for="DisplayName" class="form-label">Full name</label><input asp-for="DisplayName" class="form-control" autocomplete="name"/><span asp-validation-for="DisplayName" class="text-danger"></span></div>
+        <div class="mb-3"><label asp-for="Password" class="form-label">Password</label><input asp-for="Password" class="form-control" autocomplete="new-password"/><span asp-validation-for="Password" class="text-danger"></span></div>
+        <div class="mb-4"><label asp-for="ConfirmPassword" class="form-label">Confirm password</label><input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password"/><span asp-validation-for="ConfirmPassword" class="text-danger"></span></div>
+        <button class="btn btn-primary">Create administrator</button>
+    </form>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -1,0 +1,13 @@
+@inject IWebHostEnvironment Environment
+@{ ViewData["Title"] = "Namovation"; }
+<section class="hero rounded-4 p-5 mb-4">
+    <p class="eyebrow">EMPLOYEE INNOVATION PORTAL</p>
+    <h1>Good ideas deserve a clear path.</h1>
+    <p class="lead">Share an idea, follow its progress, and help improve how we work.</p>
+    @if (User.Identity?.IsAuthenticated == true) { <a class="btn btn-primary btn-lg" asp-controller="Workflow" asp-action="Mine">Open my workspace</a> }
+    else {
+        <a class="btn btn-primary btn-lg" asp-area="Identity" asp-page="/Account/Login">Sign in to continue</a>
+        @if (Environment.IsDevelopment()) { <a class="btn btn-outline-primary btn-lg ms-2" asp-controller="Account" asp-action="SetupFirstAdmin">Create first administrator</a> }
+    }
+</section>
+<div class="row g-3"><div class="col-md-4"><div class="card h-100"><div class="card-body"><span class="step">01</span><h2>Share</h2><p>Submit as many process, product, or customer experience ideas as you like.</p></div></div></div><div class="col-md-4"><div class="card h-100"><div class="card-body"><span class="step">02</span><h2>Review</h2><p>The manager screens ideas and sends a monthly anonymized shortlist to the board.</p></div></div></div><div class="col-md-4"><div class="card h-100"><div class="card-body"><span class="step">03</span><h2>Learn</h2><p>Board scores and meeting decisions are recorded with a traceable history.</p></div></div></div></div>

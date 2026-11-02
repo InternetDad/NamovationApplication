@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Namovation.Domain/Namovation.Domain.csproj" />
+  <Project Path="Namovation.Application/Namovation.Application.csproj" />
+  <Project Path="Namovation.Infrastructure/Namovation.Infrastructure.csproj" />
+  <Project Path="Namovation.Web/Namovation.Web.csproj" />
+</Solution>

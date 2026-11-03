@@ -46,9 +46,9 @@ The browser never connects directly to PostgreSQL. Database credentials stay on 
 | Project | What belongs there | Why it exists |
 | --- | --- | --- |
 | `Namovation.Domain` | `Idea`, `Screening`, `BoardEvaluation`, `IdeaCompilation`, `MonthlyCompilation`, `IdeaStatusEvent`, `RegistrationSettings`, enums, and `EvaluationRules` | Defines the business concepts and rules without depending on MVC or PostgreSQL. |
-| `Namovation.Application` | `IWorkflowService`, `IRegistrationSettingsService`, and `WorkflowException` | Defines operations that the application needs without tying the Web layer to a specific implementation. |
-| `Namovation.Infrastructure` | `WorkflowService`, `RegistrationSettingsService`, `NamovationDbContext`, `NamovationUser`, and EF Core migrations | Implements data access, Identity persistence, and application service contracts using PostgreSQL. |
-| `Namovation.Web` | `Program.cs`, controllers, view/input models, Identity UI, Razor views, email sender, and CSS | Handles HTTP requests, role authorization, form validation, email delivery, and user-facing pages. |
+| `Namovation.Application` | `IWorkflowService`, `IRegistrationSettingsService`, `IIdeaDocumentStore`, and `WorkflowException` | Defines operations that the Web layer needs without tying it to a specific implementation. |
+| `Namovation.Infrastructure` | `WorkflowService`, `PrivateIdeaDocumentStore`, `RegistrationSettingsService`, `NamovationDbContext`, `NamovationUser`, and EF Core migrations | Implements data access, private file storage, Identity persistence, and application service contracts using PostgreSQL. |
+| `Namovation.Web` | `Program.cs`, controllers, view/input models, Identity UI, Razor views, and CSS | Handles HTTP requests, role authorization, form validation, and user-facing pages. |
 
 The project references point inward toward the domain: Application references Domain; Infrastructure references Application and Domain; Web composes them through dependency injection in `Program.cs`.
 
@@ -75,14 +75,19 @@ sequenceDiagram
     participant UI as Razor form
     participant WC as WorkflowController
     participant WS as IWorkflowService / WorkflowService
+    participant FS as Private document storage
     participant EF as NamovationDbContext
     participant PG as PostgreSQL
 
-    Employee->>UI: Fill idea title and details
-    UI->>WC: POST Submit (Employee role required)
+    Employee->>UI: Fill idea details and optionally choose a document
+    UI->>WC: POST multipart Submit (Employee role required)
     WC->>WC: Validate IdeaInput
-    WC->>WS: SubmitIdeaAsync(userId, fields)
+    WC->>WS: SubmitIdeaAsync(userId, fields, optional document)
     WS->>WS: Create reference and Submitted status event
+    opt Supporting document selected
+        WS->>FS: Save under App_Data with a random filename
+        WS->>EF: Add attachment metadata
+    end
     WS->>EF: Add Idea and status history
     EF->>PG: INSERT rows
     PG-->>EF: Saved rows
@@ -91,7 +96,7 @@ sequenceDiagram
     WC-->>UI: Redirect to My ideas with confirmation
 ```
 
-`IdeaInput` is an HTTP form model with validation attributes. It is not the database entity. `WorkflowService` creates the domain `Idea`, generates a unique reference, sets its initial status, creates its first status-history event, and persists both.
+`IdeaInput` is an HTTP form model with validation attributes. It is not the database entity. `WorkflowService` creates the domain `Idea`, generates a unique reference, sets its initial status, creates its first status-history event, and persists both. An optional PDF, Word, Excel, PowerPoint, or text document (maximum 10 MB) is stored outside `wwwroot`; only its random storage name and metadata go into `IdeaAttachments`. Download authorization allows the submitting employee and Innovate Managers. Board accounts cannot fetch the original attachment, so it cannot bypass the anonymized board-facing text.
 
 ### Manager screens and forwards ideas
 
@@ -99,7 +104,7 @@ sequenceDiagram
 2. The manager opens a submission and chooses Repository 1 or Shortlist.
 3. `WorkflowController.Screen` passes the action to `WorkflowService.ScreenAsync`.
 4. The service requires the idea to be `Submitted`. A shortlist requires an anonymized title and description, adds the idea to the compilation for its submission month, and changes status to `Shortlisted`. A non-shortlist is assigned Repository 1.
-5. `ForwardMonthAsync` only forwards an existing, not-yet-forwarded batch after every idea in that batch has been screened. It changes shortlisted ideas to `BoardEvaluation`.
+5. `ForwardMonthAsync` forwards shortlisted ideas in a monthly batch. For an initial forward, it verifies every idea in the batch has been screened, then marks the batch forwarded. If the batch was already forwarded, only newly shortlisted ideas are advanced and the batch remains forwarded; this is the explicit addendum-forward action. In both cases, ideas change to `BoardEvaluation` only after the manager submits that action. Unreviewed ideas that were auto-advanced by the former addendum behavior are returned to `Shortlisted` for explicit forwarding.
 
 ### Board evaluates, manager compiles
 

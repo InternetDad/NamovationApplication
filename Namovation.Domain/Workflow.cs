@@ -21,6 +21,19 @@ public sealed class Idea
     public List<BoardEvaluation> Evaluations { get; set; } = [];
     public IdeaCompilation? Result { get; set; }
     public List<IdeaStatusEvent> StatusHistory { get; set; } = [];
+    public IdeaAttachment? Attachment { get; set; }
+}
+
+public sealed class IdeaAttachment
+{
+    public int Id { get; set; }
+    public int IdeaId { get; set; }
+    public Idea Idea { get; set; } = null!;
+    public string StoredFileName { get; set; } = "";
+    public string OriginalFileName { get; set; } = "";
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long SizeBytes { get; set; }
+    public DateTime UploadedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 public sealed class MonthlyCompilation

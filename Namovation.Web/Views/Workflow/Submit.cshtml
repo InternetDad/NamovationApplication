@@ -1,12 +1,13 @@
 @model Namovation.Web.Models.IdeaInput
 @{ ViewData["Title"] = "Submit an idea"; }
 <h1>Submit an idea</h1><p class="text-secondary">Your submission goes to the Innovate Manager. You can submit more than one idea.</p>
-<form asp-action="Submit" method="post" class="form-panel">
+<form asp-action="Submit" method="post" enctype="multipart/form-data" class="form-panel">
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3"><label asp-for="Title" class="form-label">Idea title</label><input asp-for="Title" class="form-control" /><span asp-validation-for="Title" class="text-danger"></span></div>
     <div class="mb-3"><label asp-for="ProblemStatement" class="form-label">Problem or opportunity</label><textarea asp-for="ProblemStatement" class="form-control" rows="3"></textarea></div>
     <div class="mb-3"><label asp-for="Description" class="form-label">Describe your idea</label><textarea asp-for="Description" class="form-control" rows="6" placeholder="What would change and how might it work?"></textarea><span asp-validation-for="Description" class="text-danger"></span></div>
     <div class="mb-3"><label asp-for="ProposedBenefit" class="form-label">Expected benefit</label><textarea asp-for="ProposedBenefit" class="form-control" rows="3"></textarea></div>
+    <div class="mb-3"><label asp-for="SupportingDocument" class="form-label">Supporting document (optional)</label><input asp-for="SupportingDocument" type="file" class="form-control" accept=".pdf,.docx,.xlsx,.pptx,.txt"/><span asp-validation-for="SupportingDocument" class="text-danger"></span><div class="form-text">Attach a PDF, Word, Excel, PowerPoint, or text document up to 10 MB. Only you and the Innovate Manager can download it; board members will not see this original file.</div></div>
     <button class="btn btn-primary">Submit idea</button> <a asp-action="Mine" class="btn btn-outline-secondary">Cancel</a>
 </form>
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

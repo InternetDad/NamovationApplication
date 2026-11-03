@@ -36,6 +36,7 @@
                                 @if (!string.IsNullOrWhiteSpace(idea.ProblemStatement)) { <dt class="col-sm-4">Problem or opportunity</dt><dd class="col-sm-8 text-prewrap">@idea.ProblemStatement</dd> }
                                 <dt class="col-sm-4">Idea details</dt><dd class="col-sm-8 text-prewrap">@idea.Description</dd>
                                 @if (!string.IsNullOrWhiteSpace(idea.ProposedBenefit)) { <dt class="col-sm-4">Expected benefit</dt><dd class="col-sm-8 text-prewrap">@idea.ProposedBenefit</dd> }
+                                @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download attachment</a><span class="small text-secondary ms-2">Private to the employee and manager; not available to the board.</span></dd> }
                             </dl>
                             <hr />
                             <form asp-action="Screen" method="post" id="screenForm-@idea.Id">
@@ -61,7 +62,35 @@
         }
     }
 </section>
-<section class="mb-5"><h2>Monthly compilations</h2><div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Period</th><th>Shortlisted ideas</th><th>Board status</th><th></th></tr></thead><tbody>@foreach (var batch in Model.Months) { <tr><td>@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(batch.Month) @batch.Year</td><td>@batch.Ideas.Count</td><td>@(batch.ForwardedToBoard ? "Forwarded" : "Preparing")</td><td>@if (!batch.ForwardedToBoard && batch.Ideas.Count > 0) { <form asp-action="Forward" method="post"><input type="hidden" name="year" value="@batch.Year"/><input type="hidden" name="month" value="@batch.Month"/><button class="btn btn-sm btn-outline-primary">Forward to board</button></form> }</td></tr> }</tbody></table></div><p class="small text-secondary mt-2">Shortlists are grouped by the month an idea was submitted and are forwarded manually during the manager's monthly compilation.</p></section>
+@if (Model.PendingAddenda.Count > 0) {
+<section class="mb-5"><h2>Shortlisted addenda awaiting your approval <span class="counter">@Model.PendingAddenda.Count</span></h2>
+    <p class="text-secondary">These ideas belong to a monthly compilation that was already forwarded. Review them here, then use that month’s “Forward addendum” action below to send them to the board.</p>
+    <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Submitted</th><th>Status</th></tr></thead><tbody>
+    @foreach (var idea in Model.PendingAddenda) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td><span class="badge text-bg-light">Waiting for manager to forward</span></td></tr> }
+    </tbody></table></div>
+</section>
+}
+<section class="mb-5"><h2>Monthly compilations</h2><div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Period</th><th>Shortlisted ideas</th><th>Board status</th><th></th></tr></thead><tbody>
+@foreach (var batch in Model.Months) {
+    var pendingAddenda = batch.Ideas.Count(i => i.Status == Namovation.Domain.IdeaStatus.Shortlisted);
+    var canForward = batch.Ideas.Count > 0 && (!batch.ForwardedToBoard || pendingAddenda > 0);
+    <tr>
+        <td>@System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(batch.Month) @batch.Year</td>
+        <td>@batch.Ideas.Count</td>
+        <td>@(batch.ForwardedToBoard ? $"Forwarded{(pendingAddenda > 0 ? $" · {pendingAddenda} addendum(s) waiting" : "")}" : "Preparing")</td>
+        <td>@if (canForward) { <form asp-controller="Workflow" asp-action="Forward" method="post" asp-antiforgery="true"><input type="hidden" name="year" value="@batch.Year"/><input type="hidden" name="month" value="@batch.Month"/><button type="submit" class="btn btn-sm btn-outline-primary">@(batch.ForwardedToBoard ? "Forward addendum" : "Forward to board")</button></form> }</td>
+    </tr>
+}
+</tbody></table></div><p class="small text-secondary mt-2">Shortlists are grouped by the month an idea was submitted. Forward each monthly compilation manually; ideas added after forwarding wait for a separate addendum action.</p></section>
+<section class="mb-5"><h2>Board evaluation in progress <span class="counter">@Model.AwaitingBoardEvaluation.Count</span></h2>
+    <p class="text-secondary">Forwarded ideas stay here while board members submit their independent scores. They move to “Ready to compile” after all three evaluations are received.</p>
+    @if (Model.AwaitingBoardEvaluation.Count == 0) { <p class="text-secondary">No forwarded ideas are waiting for board evaluations.</p> }
+    @if (Model.AwaitingBoardEvaluation.Count > 0) {
+        <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Submitted</th><th>Board evaluations</th><th>Status</th></tr></thead><tbody>
+        @foreach (var idea in Model.AwaitingBoardEvaluation) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td><strong>@idea.EvaluationCount / @Namovation.Domain.EvaluationRules.RequiredBoardMembers</strong></td><td><span class="badge text-bg-light">Forwarded to board</span></td></tr> }
+        </tbody></table></div>
+    }
+</section>
 <section class="mb-5"><h2>Ready to compile <span class="counter">@Model.ReadyToCompile.Count</span></h2>
     @if (Model.ReadyToCompile.Count == 0) { <p class="text-secondary">An idea appears here when three board members have submitted their scores.</p> }
     <div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Scores</th><th></th></tr></thead><tbody>@foreach (var idea in Model.ReadyToCompile) { <tr><td>@idea.ReferenceNumber</td><td>@idea.Title</td><td>@idea.EvaluationCount / 3</td><td><a class="btn btn-sm btn-primary" asp-action="CompileReview" asp-route-id="@idea.Id">Review scores</a></td></tr> }</tbody></table></div>
@@ -81,11 +110,11 @@
                 <div class="modal-content">
                     <div class="modal-header"><div><p class="eyebrow mb-1">IDEA ARCHIVE · @matches.Count ITEMS</p><h2 class="modal-title fs-4 mb-0" id="repositoryDetailsLabel-@n">Repository @n</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                     <div class="modal-body">
-                        <div class="table-responsive repository-details-grid"><table class="table table-hover align-middle"><thead><tr><th>Reference</th><th>Idea and details</th><th>Submitted by</th><th>Submitted</th><th>Score</th><th>@outcomeHeading</th></tr></thead><tbody>
+                        <div class="table-responsive repository-details-grid"><table class="table table-hover align-middle"><thead><tr><th>Reference</th><th>Idea and details</th><th>Submitted by</th><th>Submitted</th><th>Score</th><th>@outcomeHeading</th><th>Document</th></tr></thead><tbody>
                         @foreach (var item in matches) {
                             var score = n == 1 ? "Not evaluated" : item.AverageTotal.HasValue ? $"{item.AverageTotal:0.00}/50" : "—";
                             var outcome = n == 1 ? "Not shortlisted" : n == 2 ? "Below 40/50" : item.RewardOutcome?.ToString() ?? "—";
-                            <tr><td class="text-nowrap">@item.ReferenceNumber</td><td class="repository-idea-cell"><strong>@item.Title</strong><p>@item.Description</p>@if (!string.IsNullOrWhiteSpace(item.ProposedBenefit)) { <small><b>Expected benefit:</b> @item.ProposedBenefit</small> }</td><td>@item.Submitter</td><td class="text-nowrap">@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-nowrap">@score</td><td>@outcome</td></tr>
+                            <tr><td class="text-nowrap">@item.ReferenceNumber</td><td class="repository-idea-cell"><strong>@item.Title</strong><p>@item.Description</p>@if (!string.IsNullOrWhiteSpace(item.ProposedBenefit)) { <small><b>Expected benefit:</b> @item.ProposedBenefit</small> }</td><td>@item.Submitter</td><td class="text-nowrap">@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-nowrap">@score</td><td>@outcome</td><td>@if (item.AttachmentId is int attachmentId) { <a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download</a> } else { <span class="text-secondary">—</span> }</td></tr>
                         }
                         </tbody></table></div>
                     </div>

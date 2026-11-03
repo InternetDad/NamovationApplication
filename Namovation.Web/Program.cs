@@ -31,6 +31,8 @@ builder.Services.AddDefaultIdentity<NamovationUser>(options => {
     options.User.RequireUniqueEmail = true;
 }).AddRoles<IdentityRole>().AddEntityFrameworkStores<NamovationDbContext>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddSingleton<IIdeaDocumentStore>(_ => new PrivateIdeaDocumentStore(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "IdeaDocuments")));
 builder.Services.AddScoped<IRegistrationSettingsService, RegistrationSettingsService>();
 
 var app = builder.Build();

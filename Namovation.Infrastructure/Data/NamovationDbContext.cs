@@ -14,6 +14,7 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
     public DbSet<BoardEvaluation> BoardEvaluations => Set<BoardEvaluation>();
     public DbSet<IdeaCompilation> IdeaCompilations => Set<IdeaCompilation>();
     public DbSet<IdeaStatusEvent> IdeaStatusEvents => Set<IdeaStatusEvent>();
+    public DbSet<IdeaAttachment> IdeaAttachments => Set<IdeaAttachment>();
     public DbSet<RegistrationSettings> RegistrationSettings => Set<RegistrationSettings>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -34,6 +35,12 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
         b.Entity<Idea>().HasOne(x => x.Screening).WithOne(x => x.Idea).HasForeignKey<Screening>(x => x.IdeaId);
         b.Entity<Idea>().HasMany(x => x.Evaluations).WithOne(x => x.Idea).HasForeignKey(x => x.IdeaId);
         b.Entity<Idea>().HasMany(x => x.StatusHistory).WithOne(x => x.Idea).HasForeignKey(x => x.IdeaId);
+        b.Entity<Idea>().HasOne(x => x.Attachment).WithOne(x => x.Idea).HasForeignKey<IdeaAttachment>(x => x.IdeaId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<IdeaAttachment>().Property(x => x.SizeBytes).HasColumnType("bigint");
+        b.Entity<IdeaAttachment>().HasIndex(x => x.StoredFileName).IsUnique();
+        b.Entity<IdeaAttachment>().Property(x => x.OriginalFileName).HasMaxLength(255).IsRequired();
+        b.Entity<IdeaAttachment>().Property(x => x.ContentType).HasMaxLength(120).IsRequired();
+        b.Entity<IdeaAttachment>().Property(x => x.StoredFileName).HasMaxLength(80).IsRequired();
         b.Entity<MonthlyCompilation>().HasMany(x => x.Ideas).WithOne(x => x.MonthlyCompilation).HasForeignKey(x => x.MonthlyCompilationId);
         // Deliberately omit SubmitterId and identity profile data from all board-facing projections.
     }

@@ -11,6 +11,7 @@ erDiagram
 
     MonthlyCompilations o|--o{ Ideas : groups
     Ideas ||--o| Screenings : screened_once
+    Ideas ||--o| IdeaAttachments : may_include
     Ideas ||--o{ BoardEvaluations : receives
     Ideas ||--o| IdeaCompilations : compiled_once
     Ideas ||--o{ IdeaStatusEvents : records
@@ -89,6 +90,15 @@ erDiagram
         text ChangedById
         text Note
     }
+    IdeaAttachments {
+        int Id PK
+        int IdeaId FK, UK
+        text StoredFileName UK
+        text OriginalFileName
+        text ContentType
+        bigint SizeBytes
+        timestamp UploadedAtUtc
+    }
 ```
 
 `PK` is a primary key, `FK` is a foreign key, and `UK` indicates a unique constraint or unique index. The diagram focuses on the relationships represented by database constraints. Identity also creates supporting tables for claims, logins, and tokens.
@@ -102,6 +112,7 @@ erDiagram
 | `AspNetUserRoles` | Join table mapping users to roles. Its composite primary key `(UserId, RoleId)` prevents duplicate membership. |
 | `MonthlyCompilations` | One monthly batch of shortlisted ideas. The unique `(Year, Month)` index ensures at most one batch per month; `ForwardedToBoard` records whether it was sent. |
 | `Ideas` | The canonical/original employee submission and its current status. Optional `MonthlyCompilationId` associates a shortlisted idea with its month. |
+| `IdeaAttachments` | Optional one-per-idea metadata for a private supporting document. File contents are stored under `Namovation.Web/App_Data/IdeaDocuments`, outside the public static-file folder; the database stores the random storage name and display metadata. |
 | `Screenings` | The manager's one screening decision per idea, rationale, and anonymized title/description shown to board members. It is separate from the original submission so board-facing text can be sanitized without overwriting employee text. |
 | `BoardEvaluations` | One board member's five scores and submission time for one idea. Multiple rows preserve independent evaluations. |
 | `IdeaCompilations` | The manager's compiled average and final eligibility/meeting/repository fields. This is separate from the individual board scores. |
@@ -115,6 +126,7 @@ erDiagram
 - An **idea** can have many board evaluations. The unique `(IdeaId, BoardMemberId)` index permits at most one evaluation per board member per idea.
 - An **idea** can have zero or one compilation result. `IdeaCompilations.IdeaId` is unique.
 - An **idea** can have many status-history events.
+- An **idea** can have zero or one supporting attachment. The unique `IdeaAttachments.IdeaId` index enforces one optional file per idea.
 - `RegistrationSettings` is a singleton configuration record, constrained to `Id = 1`; it has no foreign-key relation to workflow rows. The update actor is stored as an Identity user ID string, as with other workflow actor fields.
 - Identity stores authenticator keys and recovery codes in `AspNetUserTokens`, keyed by user, provider, and token name. A registration-pending marker also uses that table; no custom OTP storage table is needed.
 - A **user** can hold multiple roles, and a **role** can be assigned to many users. `AspNetUserRoles` implements this many-to-many relationship with foreign keys to both Identity tables.
@@ -122,6 +134,7 @@ erDiagram
 ## How the schema enforces workflow rules
 
 1. When an employee submits an idea, `WorkflowService.SubmitIdeaAsync` inserts an `Ideas` row with a unique reference number and the initial `Submitted` status. It also inserts the first `IdeaStatusEvents` row.
+   If a supporting document is supplied, the service stores the file outside `wwwroot` and inserts one `IdeaAttachments` metadata row. The private download action permits only the submitting employee and Innovate Managers; board accounts cannot retrieve original files, preserving the anonymized review boundary.
 2. When a manager screens it, `ScreenAsync` creates the `Screenings` row. A shortlist stores anonymized board-facing fields and attaches the idea to its submission month's `MonthlyCompilations` batch. A non-shortlisted idea receives a Repository 1 result in `IdeaCompilations`.
 3. When the manager forwards a month, `ForwardMonthAsync` marks the batch as forwarded and changes its shortlisted ideas to `BoardEvaluation`.
 4. Each board submission inserts one `BoardEvaluations` row. Service validation checks score bounds, that the idea is open for evaluation, that the member has not already evaluated it, and that fewer than three evaluations exist. The database's unique `(IdeaId, BoardMemberId)` index provides an additional duplicate guard.

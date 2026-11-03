@@ -1,0 +1,13 @@
+@model Namovation.Web.Models.AuthenticatorSetupCompleteViewModel
+@{ ViewData["Title"] = "Authenticator connected"; }
+<section class="verification-complete recovery-code-page">
+    <div class="verification-check" aria-hidden="true">✓</div>
+    <p class="eyebrow">AUTHENTICATOR CONNECTED</p>
+    <h1>Your account is protected.</h1>
+    <p>Your authenticator is ready for sign-in. Save these recovery codes somewhere private; each code can be used once if you lose access to your authenticator.</p>
+    <div class="recovery-codes" aria-label="One-time recovery codes">
+        @foreach (var code in Model.RecoveryCodes) { <code>@code</code> }
+    </div>
+    <p class="recovery-warning">These codes are shown only once. Save or print them before continuing.</p>
+    <a class="btn btn-primary btn-lg" asp-controller="Home" asp-action="Index">Continue to Namovation</a>
+</section>

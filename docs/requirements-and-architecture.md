@@ -12,7 +12,7 @@ Namovation is an employee innovation portal. Employees submit improvement ideas,
 | Innovate Manager | See all submissions and submitter identity; screen and anonymize; forward monthly compilations; compile completed evaluations; record meeting outcomes; view repositories |
 | Innovate Board | See only anonymized title, description, and system reference; submit one independent evaluation per idea |
 
-ASP.NET Core Identity stores users and roles. On startup the application creates the Employee, InnovateManager, InnovateBoard, and Admin roles. A one-time Development-only page creates the first Admin account through Identity; the password is hashed before storage, and the page closes once an Admin exists. The admin can create users and assign roles from the User accounts and roles screens. New local registrations are assigned Employee access. Production accounts and Admin membership must be provisioned through an approved administrator process because self-registration cannot verify employment or grade.
+ASP.NET Core Identity stores users and roles. On startup the application creates the Employee, InnovateManager, InnovateBoard, and Admin roles. A one-time Development-only page creates the first Admin account through Identity; the password is hashed before storage, and the page closes once an Admin exists. The admin can create users, assign roles, and require/allow authenticator setup for public self-registration from the Admin UI. This setting is persisted in a singleton PostgreSQL `RegistrationSettings` row and defaults to required. When required, new self-registrants enroll an authenticator app before receiving Employee access; Identity stores the secret and recovery codes in `AspNetUserTokens`. When optional, the authenticator step is skipped. The setting affects new self-registration only. In Development, Employee access is assigned after setup (or immediately when optional); in Production, an admin assigns the role after checking employee eligibility. Admin-created accounts are provisioned directly. Authenticator setup proves access to a TOTP app; it does not verify email ownership.
 
 ## Workflow mapping
 
@@ -53,19 +53,19 @@ The solution is a modular monolith with four projects:
 
 - **Namovation.Domain:** workflow entities, statuses, and score rules.
 - **Namovation.Application:** workflow service contract and application exceptions.
-- **Namovation.Infrastructure:** EF Core SQL Server persistence, Identity user profile, and workflow service implementation.
+- **Namovation.Infrastructure:** EF Core PostgreSQL persistence, Identity user profile, and workflow service implementation.
 - **Namovation.Web:** ASP.NET Core MVC, Razor UI, Identity sign-in, role-based authorization, and DI composition.
 
 This keeps workflow decisions in a service, persistence in Infrastructure, and the UI behind role-authorized MVC actions. The board-facing view model is deliberately separate from the employee and manager view models.
 
 ## Implementation plan
 
-1. **Foundation (included):** Create solution projects; configure Identity, roles, EF Core, SQL Server, and domain entities.
+1. **Foundation (included):** Create solution projects; configure Identity, roles, EF Core, PostgreSQL, and domain entities.
 2. **Employee portal (included):** Submit ideas and view own statuses.
 3. **Manager screening (included):** Review, anonymize, reject to Repository 1, and prepare/forward monthly batches.
 4. **Board review (included):** View sanitized ideas and submit five scores.
 5. **Compilation and repositories (included):** Require three evaluations, calculate averages, apply threshold, record meeting outcomes, and classify repositories.
-6. **Production operations (next):** Replace startup `EnsureCreated` with migrations; configure approved database, email, account provisioning, audit/retention policy, and deployment secrets. Add automated notifications and operational reporting after the organization supplies its provider/configuration.
+6. **Production operations (next):** Configure production database secrets, account provisioning, audit/retention policy, and deployment secrets. Continue using reviewed EF Core migrations for schema changes. Submission acknowledgements and automated workflow notifications remain integration tasks until the organization supplies an email provider, sender policy, and templates. Authenticator sign-in itself requires no SMTP provider or external API key.
 
 ## Decisions to confirm
 
@@ -92,3 +92,5 @@ dotnet run --project .\Namovation.Web
 ```
 
 Apply migrations with `dotnet ef database update` before starting the app. App startup creates Identity roles. Open the Development-only “Create first administrator” page from the home screen once to create the first Admin account. Sign in as that admin to create and manage accounts in the User accounts and roles screens. New Development registrations are assigned Employee access. Confirm employee eligibility (regular employee, grade C1 or above) and maintain exactly three nominated board members as part of that process.
+
+When authenticator setup is required, users install Microsoft Authenticator or another TOTP-compatible app and enter the setup key shown by the application. No mail server, SMTP credentials, SMS provider, or API key is needed for authenticator enrollment or sign-in. A recovery-code page displays single-use backup codes once after enrollment; users should save them securely.

@@ -1,0 +1,31 @@
+@model Namovation.Web.Models.AdminRegistrationSettingsViewModel
+@{ ViewData["Title"] = "Registration settings"; }
+<a asp-action="Users" class="small">← User accounts and roles</a>
+<div class="page-heading mt-3"><div><p class="eyebrow">ADMINISTRATION</p><h1>Registration settings</h1><p class="text-secondary">Control whether new self-registered accounts must set up an authenticator app.</p></div></div>
+
+@if (TempData["Message"] is string message) { <div class="alert alert-success">@message</div> }
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+
+<section class="settings-card card">
+    <div class="card-body">
+        <div class="settings-card-heading">
+            <div><span class="settings-icon" aria-hidden="true">⌘</span><div><h2>Authenticator setup</h2><p>Applies to new users who create their own account from the registration page.</p></div></div>
+            @if (Model.AuthenticatorSetupRequired) { <span class="settings-status settings-status-on">Required</span> } else { <span class="settings-status settings-status-off">Optional</span> }
+        </div>
+
+        <div class="settings-info-grid">
+            <div><span>Setup method</span><strong>Authenticator app · no SMTP required</strong></div>
+            <div><span>Last updated</span><strong>@Model.UpdatedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt")</strong></div>
+        </div>
+
+        <form asp-action="RegistrationSettings" method="post" class="settings-form mt-4">
+            <label class="settings-toggle" for="AuthenticatorSetupRequired">
+                <input asp-for="AuthenticatorSetupRequired" class="form-check-input" />
+                <span><strong>Require authenticator setup for new registrations</strong><small>When enabled, new users must connect a time-based authenticator before receiving Employee access.</small></span>
+            </label>
+            <div class="settings-note"><strong>What users need:</strong> An authenticator app such as Microsoft Authenticator. The app can be set up using the key shown during registration; email, SMS, SMTP, and provider API keys are not used.</div>
+            <div class="settings-note"><strong>Existing accounts:</strong> This setting affects new self-registrations only. It does not change existing users or accounts created directly by an admin.</div>
+            <div class="d-flex flex-wrap gap-2 mt-4"><button type="submit" class="btn btn-primary">Save settings</button><a asp-action="Users" class="btn btn-outline-secondary">Cancel</a></div>
+        </form>
+    </div>
+</section>

@@ -1,48 +1,44 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Namovation.Web</title>
+    <meta name="theme-color" content="#f5f8f6" />
+    <title>@ViewData["Title"] - Namovation</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Namovation.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Namovation</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
+    <header class="site-header">
+        <nav class="navbar navbar-expand-lg app-navbar">
+            <div class="container-xl">
+                <a class="navbar-brand brand-lockup" asp-controller="Home" asp-action="Index">
+                    <span class="brand-mark" aria-hidden="true">N</span>
+                    <span><strong>Namovation</strong><small>Ideas into impact</small></span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
+                <div class="collapse navbar-collapse" id="mainNavigation">
+                    <ul class="navbar-nav ms-lg-5 me-auto">
+                        <li class="nav-item"><a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a></li>
                         @if (User.IsInRole("Employee")) { <li class="nav-item"><a class="nav-link" asp-controller="Workflow" asp-action="Mine">My ideas</a></li><li class="nav-item"><a class="nav-link" asp-controller="Workflow" asp-action="Submit">Submit an idea</a></li> }
                         @if (User.IsInRole("InnovateManager")) { <li class="nav-item"><a class="nav-link" asp-controller="Workflow" asp-action="Manager">Manager workspace</a></li> }
-                        @if (User.IsInRole("InnovateBoard")) { <li class="nav-item"><a class="nav-link" asp-controller="Workflow" asp-action="Board">Board evaluations</a></li> }
-                        @if (User.IsInRole("Admin")) { <li class="nav-item"><a class="nav-link" asp-controller="Admin" asp-action="Users">User roles</a></li> }
+                        @if (User.IsInRole("InnovateBoard")) { <li class="nav-item"><a class="nav-link" asp-controller="Workflow" asp-action="Board">Board reviews</a></li> }
+                        @if (User.IsInRole("Admin")) { <li class="nav-item"><a class="nav-link" asp-controller="Admin" asp-action="Users">User management</a></li><li class="nav-item"><a class="nav-link" asp-controller="Admin" asp-action="RegistrationSettings">Settings</a></li> }
                     </ul>
+                    <partial name="_LoginPartial" />
                 </div>
-                <partial name="_LoginPartial" />
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Namovation.Web - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
+    <main class="container-xl app-main" role="main">
+        @RenderBody()
+    </main>
+    <footer class="site-footer">
+        <div class="container-xl"><span>Namovation</span><span>Every improvement starts with an idea.</span><a asp-controller="Home" asp-action="Privacy">Privacy</a></div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

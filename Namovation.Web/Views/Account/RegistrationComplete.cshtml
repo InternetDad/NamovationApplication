@@ -1,0 +1,19 @@
+@{ ViewData["Title"] = "Account ready"; var requiresAdminApproval = ViewBag.RequiresAdminApproval is true; var setupSkipped = ViewBag.AuthenticatorSetupSkipped is true; }
+<section class="verification-complete">
+    <div class="verification-check" aria-hidden="true">✓</div>
+    @if (setupSkipped)
+    {
+        <p class="eyebrow">ACCOUNT CREATED</p>
+        <h1>Your account is ready.</h1>
+        @if (requiresAdminApproval) { <p>Authenticator setup is optional. An administrator must assign your employee role before you can open the employee workspace.</p> }
+        else { <p>Authenticator setup is optional. You can sign in and continue to your employee workspace.</p> }
+    }
+    else
+    {
+        <p class="eyebrow">ACCOUNT READY</p>
+        <h1>Your account is ready.</h1>
+        @if (requiresAdminApproval) { <p>An administrator must assign your employee role before you can open the employee workspace.</p> }
+        else { <p>Sign in to start sharing and tracking your ideas.</p> }
+    }
+    <a class="btn btn-primary btn-lg" asp-controller="Account" asp-action="Login">Continue to sign in</a>
+</section>

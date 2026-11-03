@@ -1,0 +1,35 @@
+@model Namovation.Web.Models.AuthenticatorLoginInput
+@{ ViewData["Title"] = "Authenticator sign-in"; }
+<div class="auth-layout auth-layout-compact">
+    <aside class="auth-intro">
+        <p class="eyebrow">A SECOND CHECK</p>
+        <h1>Confirm it’s you.</h1>
+        <p>Enter the current code from the authenticator app connected to your Namovation account.</p>
+        <div class="auth-promise"><span>⌁</span><div><strong>Codes refresh automatically</strong><small>Use the latest code shown in your app.</small></div></div>
+    </aside>
+    <section class="auth-card">
+        <p class="eyebrow">AUTHENTICATOR SIGN-IN</p>
+        <h2>Enter your code</h2>
+        <form asp-action="LoginWithAuthenticator" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <input asp-for="ReturnUrl" type="hidden" />
+            <input asp-for="RememberMe" type="hidden" />
+            <input type="hidden" name="UseRecoveryCode" value="false" />
+            <div class="mb-3"><label asp-for="Code" class="form-label">Six-digit code</label><input asp-for="Code" class="form-control otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" autofocus/><span asp-validation-for="Code" class="text-danger"></span></div>
+            <label class="login-remember mb-4"><input asp-for="RememberMachine" class="form-check-input"/><span>Remember this device</span></label>
+            <button class="btn btn-primary btn-lg w-100">Verify and sign in</button>
+        </form>
+        <details class="recovery-entry">
+            <summary>Use a recovery code instead</summary>
+            <form asp-action="LoginWithAuthenticator" method="post" class="mt-3">
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="RememberMe" type="hidden" />
+                <input type="hidden" name="UseRecoveryCode" value="true" />
+                <label asp-for="Code" class="form-label">Unused recovery code</label>
+                <input name="Code" class="form-control mb-3" autocomplete="off" placeholder="Enter one saved recovery code" />
+                <button class="btn btn-outline-primary w-100">Use recovery code</button>
+            </form>
+        </details>
+        <p class="auth-footnote"><a asp-controller="Account" asp-action="Login">Back to sign in</a></p>
+    </section>
+</div>

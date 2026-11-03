@@ -14,6 +14,12 @@ erDiagram
     Ideas ||--o{ BoardEvaluations : receives
     Ideas ||--o| IdeaCompilations : compiled_once
     Ideas ||--o{ IdeaStatusEvents : records
+    RegistrationSettings {
+        int Id PK
+        bool AuthenticatorSetupRequired
+        timestamp UpdatedAtUtc
+        text UpdatedByUserId
+    }
 
     AspNetUsers {
         text Id PK
@@ -100,6 +106,7 @@ erDiagram
 | `BoardEvaluations` | One board member's five scores and submission time for one idea. Multiple rows preserve independent evaluations. |
 | `IdeaCompilations` | The manager's compiled average and final eligibility/meeting/repository fields. This is separate from the individual board scores. |
 | `IdeaStatusEvents` | Status-change history with actor ID, time, and optional note, retained alongside the current status on `Ideas`. |
+| `RegistrationSettings` | One singleton row stores whether public self-registration requires authenticator setup, when the value changed, and the admin user ID that changed it. The initial migration inserts row `Id = 1` with setup required. |
 
 ## Relationships and cardinality
 
@@ -108,6 +115,8 @@ erDiagram
 - An **idea** can have many board evaluations. The unique `(IdeaId, BoardMemberId)` index permits at most one evaluation per board member per idea.
 - An **idea** can have zero or one compilation result. `IdeaCompilations.IdeaId` is unique.
 - An **idea** can have many status-history events.
+- `RegistrationSettings` is a singleton configuration record, constrained to `Id = 1`; it has no foreign-key relation to workflow rows. The update actor is stored as an Identity user ID string, as with other workflow actor fields.
+- Identity stores authenticator keys and recovery codes in `AspNetUserTokens`, keyed by user, provider, and token name. A registration-pending marker also uses that table; no custom OTP storage table is needed.
 - A **user** can hold multiple roles, and a **role** can be assigned to many users. `AspNetUserRoles` implements this many-to-many relationship with foreign keys to both Identity tables.
 
 ## How the schema enforces workflow rules
@@ -118,6 +127,7 @@ erDiagram
 4. Each board submission inserts one `BoardEvaluations` row. Service validation checks score bounds, that the idea is open for evaluation, that the member has not already evaluated it, and that fewer than three evaluations exist. The database's unique `(IdeaId, BoardMemberId)` index provides an additional duplicate guard.
 5. Once there are exactly three evaluation rows, `CompileAsync` computes the average of their totals and inserts one `IdeaCompilations` row. Below 40/50 is assigned Repository 2. A score of 40/50 or higher is marked eligible and waits for the meeting decision.
 6. `DecideRewardAsync` records the meeting outcome and optional notes in `IdeaCompilations`. Rewarded or Appreciated assigns Repository 3. `NotSelected` currently receives no repository assignment because the source requirements do not say where it belongs.
+7. The Admin registration-settings page updates the singleton `RegistrationSettings` row. When authenticator setup is required, a new self-registered user has no Employee role until they enroll and confirm an authenticator code. When setup is optional, registration proceeds without enrollment. Existing accounts are not changed by the toggle.
 
 ## Physical repositories vs. repository values
 
@@ -126,6 +136,8 @@ Repository 1, 2, and 3 are workflow classifications, not separate PostgreSQL tab
 ## User ID references in workflow records
 
 Workflow rows store actor identifiers such as `Ideas.SubmitterId`, `Screenings.ManagerId`, `BoardEvaluations.BoardMemberId`, `MonthlyCompilations.CreatedById`, `IdeaCompilations.CompiledById`, and `IdeaStatusEvents.ChangedById`. In the current migration, these are text columns without PostgreSQL foreign-key constraints to `AspNetUsers`. The app uses the IDs to associate activity with users, but the database does not prevent an ID from referring to a deleted or missing user. Adding those constraints is a possible schema improvement; it was not silently assumed in the existing migration.
+
+Authenticator enrollment proves the user can generate matching time-based codes from the enrolled authenticator. It does not prove that the email address in `AspNetUsers` belongs to that user.
 
 ## EF Core configuration
 

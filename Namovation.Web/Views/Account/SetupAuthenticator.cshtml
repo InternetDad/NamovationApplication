@@ -1,0 +1,47 @@
+@model Namovation.Web.Models.AuthenticatorSetupViewModel
+@{ ViewData["Title"] = "Set up authenticator"; }
+<div class="auth-layout auth-layout-compact">
+    <aside class="auth-intro">
+        <p class="eyebrow">SECURE YOUR ACCOUNT</p>
+        <h1>Set up your authenticator.</h1>
+        <p>Connect an authenticator app to generate sign-in codes on your device. No email or phone delivery is used.</p>
+        <div class="auth-promise"><span>01</span><div><strong>Install an authenticator app</strong><small>Microsoft Authenticator or another TOTP-compatible app.</small></div></div>
+        <div class="auth-promise"><span>02</span><div><strong>Scan the Namovation QR code</strong><small>In Microsoft Authenticator, choose +, then Other account.</small></div></div>
+        <div class="auth-promise"><span>03</span><div><strong>Confirm the current code</strong><small>Enter the six-digit code from the app below.</small></div></div>
+    </aside>
+    <section class="auth-card">
+        <p class="eyebrow">AUTHENTICATOR ENROLLMENT</p>
+        <h2>Connect your app</h2>
+        <p class="text-secondary">In Microsoft Authenticator, tap <strong>+</strong>, choose <strong>Other account</strong>, then scan this code. Add <strong>@Model.Email</strong> and enter the current six-digit code below.</p>
+        <div class="authenticator-qr-panel">
+            <img src="@Url.Action("AuthenticatorQrCode", "Account")" alt="Namovation authenticator setup QR code" width="220" height="220" />
+            <span>Scan using your authenticator app</span>
+        </div>
+        <details class="authenticator-manual-fallback">
+            <summary>Can’t scan? Enter the setup key manually</summary>
+        <div class="authenticator-key-panel">
+            <span>Manual setup key</span>
+            <code id="authenticator-key" data-key="@Model.SharedKey">@Model.SharedKey</code>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="copy-authenticator-key">Copy setup key</button>
+        </div>
+        </details>
+        <form asp-action="SetupAuthenticator" method="post" class="mt-4">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <div class="mb-4"><label for="Code" class="form-label">Six-digit authenticator code</label><input name="Code" id="Code" class="form-control otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"/>@Html.ValidationMessage("Code", "", new { @class = "text-danger" })</div>
+            <button class="btn btn-primary btn-lg w-100">Confirm and secure account</button>
+        </form>
+        <p class="auth-footnote">Keep the setup key private. Anyone with this key can generate sign-in codes for this account.</p>
+    </section>
+</div>
+@section Scripts {
+    <script>
+        document.getElementById('copy-authenticator-key')?.addEventListener('click', async function () {
+            const key = document.getElementById('authenticator-key')?.dataset.key;
+            if (!key) return;
+            await navigator.clipboard.writeText(key);
+            this.textContent = 'Copied';
+        });
+        const code = document.getElementById('Code');
+        code?.addEventListener('input', () => { code.value = code.value.replace(/\D/g, '').slice(0, 6); });
+    </script>
+}

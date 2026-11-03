@@ -69,10 +69,30 @@
 <section class="mb-5"><h2>Reward meeting decisions</h2><p class="text-secondary">Only ideas averaging at least 40/50 are eligible for the meeting decision. Qualification does not automatically approve a reward.</p>
 @foreach (var idea in Model.Repositories.Where(x => x.RewardEligible == true && x.RewardOutcome == Namovation.Domain.RewardOutcome.Pending)) { <article class="card mb-3"><div class="card-body"><div class="eyebrow">@idea.ReferenceNumber · @idea.AverageTotal/50</div><h3>@idea.Title</h3><p>@idea.Description</p><form asp-action="RewardDecision" method="post" class="d-flex gap-2 flex-wrap"><input type="hidden" name="id" value="@idea.Id"/><select name="outcome" class="form-select decision"><option value="Rewarded">Reward</option><option value="Appreciated">Appreciation</option><option value="NotSelected">Not selected</option></select><input name="notes" class="form-control rationale" placeholder="Meeting notes (optional)"/><button class="btn btn-primary">Record decision</button></form></div></article> }
 </section>
-<section><h2>Repositories</h2><div class="row g-3">
+<section class="mb-5"><h2>Repositories</h2><div class="row g-3">
 @for (var n = 1; n <= 3; n++) {
     var matches = Model.Repositories.Where(x => (int?)x.Repository == n).ToList();
     var label = n == 1 ? "Not selected for board evaluation." : n == 2 ? "Board-evaluated and below the reward consideration threshold." : "Finally selected for reward or appreciation.";
-    <div class="col-md-4"><div class="card h-100"><div class="card-body"><h3>Repository @n</h3><p class="text-secondary">@label</p><strong>@matches.Count ideas</strong><ul class="repo-list">@foreach (var item in matches.Take(6)) { <li>@item.ReferenceNumber — @item.Title</li> }</ul></div></div></div>
+    <div class="col-md-4"><article class="card repository-card h-100"><div class="card-body"><div class="repository-card-top"><span class="repository-number">0@n</span><span class="counter">@matches.Count ideas</span></div><h3>Repository @n</h3><p class="text-secondary">@label</p><button type="button" class="btn btn-outline-primary mt-auto" data-bs-toggle="modal" data-bs-target="#repositoryDetails-@n" disabled="@(matches.Count == 0)">View ideas</button></div></article></div>
+    @if (matches.Count > 0) {
+        var outcomeHeading = n == 1 ? "Screening result" : n == 2 ? "Threshold result" : "Meeting outcome";
+        <div class="modal fade" id="repositoryDetails-@n" tabindex="-1" aria-labelledby="repositoryDetailsLabel-@n" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header"><div><p class="eyebrow mb-1">IDEA ARCHIVE · @matches.Count ITEMS</p><h2 class="modal-title fs-4 mb-0" id="repositoryDetailsLabel-@n">Repository @n</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                    <div class="modal-body">
+                        <div class="table-responsive repository-details-grid"><table class="table table-hover align-middle"><thead><tr><th>Reference</th><th>Idea and details</th><th>Submitted by</th><th>Submitted</th><th>Score</th><th>@outcomeHeading</th></tr></thead><tbody>
+                        @foreach (var item in matches) {
+                            var score = n == 1 ? "Not evaluated" : item.AverageTotal.HasValue ? $"{item.AverageTotal:0.00}/50" : "—";
+                            var outcome = n == 1 ? "Not shortlisted" : n == 2 ? "Below 40/50" : item.RewardOutcome?.ToString() ?? "—";
+                            <tr><td class="text-nowrap">@item.ReferenceNumber</td><td class="repository-idea-cell"><strong>@item.Title</strong><p>@item.Description</p>@if (!string.IsNullOrWhiteSpace(item.ProposedBenefit)) { <small><b>Expected benefit:</b> @item.ProposedBenefit</small> }</td><td>@item.Submitter</td><td class="text-nowrap">@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-nowrap">@score</td><td>@outcome</td></tr>
+                        }
+                        </tbody></table></div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+                </div>
+            </div>
+        </div>
+    }
 }
 </div></section>

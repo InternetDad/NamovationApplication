@@ -1,0 +1,27 @@
+@model Namovation.Web.Models.RegisterInput
+@{ ViewData["Title"] = "Create account"; }
+<div class="auth-layout">
+    <aside class="auth-intro">
+        <p class="eyebrow">JOIN NAMOVATION</p>
+        <h1>Bring your idea into the conversation.</h1>
+        <p>Create your account and set up an authenticator app to protect sign-in and start sharing improvements that can make a difference.</p>
+        <div class="auth-promise"><span>01</span><div><strong>Your account stays yours</strong><small>Track your submissions and their progress.</small></div></div>
+        <div class="auth-promise"><span>02</span><div><strong>Board reviews are anonymized</strong><small>Managers prepare the board-facing idea details.</small></div></div>
+    </aside>
+    <section class="auth-card">
+        <p class="eyebrow">NEW ACCOUNT</p>
+        <h2>Create your account</h2>
+        <p class="text-secondary">After creating your account, you may be asked to connect Microsoft Authenticator or another compatible app.</p>
+        <form asp-action="Register" method="post">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <div class="mb-3"><label asp-for="DisplayName" class="form-label">Full name</label><input asp-for="DisplayName" class="form-control" autocomplete="name"/><span asp-validation-for="DisplayName" class="text-danger"></span></div>
+            <div class="mb-3"><label asp-for="Email" class="form-label">Work email</label><input asp-for="Email" class="form-control" autocomplete="email"/><span asp-validation-for="Email" class="text-danger"></span></div>
+            <div class="row"><div class="col-md-6 mb-3"><label asp-for="Designation" class="form-label">Designation <span class="optional-label">Optional</span></label><input asp-for="Designation" class="form-control" autocomplete="organization-title"/></div><div class="col-md-6 mb-3"><label asp-for="Location" class="form-label">Location <span class="optional-label">Optional</span></label><input asp-for="Location" class="form-control" autocomplete="address-level2"/></div></div>
+            <div class="mb-3"><label asp-for="Password" class="form-label">Password</label><input asp-for="Password" class="form-control" autocomplete="new-password"/><span asp-validation-for="Password" class="text-danger"></span><small class="form-hint">Use at least 10 characters.</small></div>
+            <div class="mb-4"><label asp-for="ConfirmPassword" class="form-label">Confirm password</label><input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password"/><span asp-validation-for="ConfirmPassword" class="text-danger"></span></div>
+            <button class="btn btn-primary btn-lg w-100">Create account</button>
+        </form>
+        <p class="auth-footnote">Already have an account? <a asp-controller="Account" asp-action="Login">Sign in</a></p>
+    </section>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

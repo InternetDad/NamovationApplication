@@ -2,13 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namovation.Application;
 using Namovation.Infrastructure.Data;
 using Namovation.Web.Models;
 
 namespace Namovation.Web.Controllers;
 
 [Authorize(Roles = "Admin")]
-public sealed class AdminController(UserManager<NamovationUser> users) : Controller
+public sealed class AdminController(UserManager<NamovationUser> users, IRegistrationSettingsService registrationSettings) : Controller
 {
     private static readonly string[] ManagedRoles = ["Employee", "InnovateManager", "InnovateBoard", "Admin"];
 
@@ -22,6 +23,23 @@ public sealed class AdminController(UserManager<NamovationUser> users) : Control
             rows.Add(new AdminUserRow(user.Id, user.Email ?? "", user.DisplayName, user.Designation, user.Location, assigned));
         }
         return View(rows);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> RegistrationSettings()
+    {
+        var settings = await registrationSettings.GetAsync();
+        return View(new AdminRegistrationSettingsViewModel(settings.AuthenticatorSetupRequired, settings.UpdatedAtUtc));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RegistrationSettings(AdminRegistrationSettingsInput input)
+    {
+        await registrationSettings.UpdateAuthenticatorRequirementAsync(input.AuthenticatorSetupRequired, users.GetUserId(User)!);
+        TempData["Message"] = input.AuthenticatorSetupRequired
+            ? "Authenticator setup is required for new self-registrations."
+            : "Authenticator setup is optional for new self-registrations.";
+        return RedirectToAction(nameof(RegistrationSettings));
     }
 
     [HttpGet]

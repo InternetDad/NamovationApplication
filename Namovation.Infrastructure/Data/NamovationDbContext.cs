@@ -6,6 +6,7 @@ namespace Namovation.Infrastructure.Data;
 
 public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> options)
     : IdentityDbContext<NamovationUser>(options)
+
 {
     public DbSet<Idea> Ideas => Set<Idea>();
     public DbSet<MonthlyCompilation> MonthlyCompilations => Set<MonthlyCompilation>();
@@ -13,6 +14,7 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
     public DbSet<BoardEvaluation> BoardEvaluations => Set<BoardEvaluation>();
     public DbSet<IdeaCompilation> IdeaCompilations => Set<IdeaCompilation>();
     public DbSet<IdeaStatusEvent> IdeaStatusEvents => Set<IdeaStatusEvent>();
+    public DbSet<RegistrationSettings> RegistrationSettings => Set<RegistrationSettings>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -26,6 +28,8 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
         b.Entity<BoardEvaluation>().HasIndex(x => new { x.IdeaId, x.BoardMemberId }).IsUnique();
         b.Entity<IdeaCompilation>().HasIndex(x => x.IdeaId).IsUnique();
         b.Entity<IdeaCompilation>().Property(x => x.AverageTotal).HasPrecision(5, 2);
+        b.Entity<RegistrationSettings>().Property(x => x.AuthenticatorSetupRequired).HasDefaultValue(true);
+        b.Entity<RegistrationSettings>().ToTable(t => t.HasCheckConstraint("CK_RegistrationSettings_SingletonId", "\"Id\" = 1"));
         b.Entity<Idea>().HasOne(x => x.Result).WithOne(x => x.Idea).HasForeignKey<IdeaCompilation>(x => x.IdeaId);
         b.Entity<Idea>().HasOne(x => x.Screening).WithOne(x => x.Idea).HasForeignKey<Screening>(x => x.IdeaId);
         b.Entity<Idea>().HasMany(x => x.Evaluations).WithOne(x => x.Idea).HasForeignKey(x => x.IdeaId);

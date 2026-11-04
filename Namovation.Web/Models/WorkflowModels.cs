@@ -22,9 +22,9 @@ public sealed class ScoreInput
     [Range(1,10)] public int BusinessImpact { get; set; } = 5;
     [Range(1,10)] public int CommercialViability { get; set; } = 5;
 }
-public sealed record IdeaRow(int Id, string ReferenceNumber, string Title, string? Description, IdeaStatus Status, DateTime SubmittedAt, string? Submitter, int EvaluationCount, decimal? AverageTotal, bool? RewardEligible, RewardOutcome? RewardOutcome, RepositoryKind? Repository, string? ProblemStatement = null, string? ProposedBenefit = null, int? AttachmentId = null);
+public sealed record IdeaRow(int Id, string ReferenceNumber, string Title, string? Description, IdeaStatus Status, DateTime SubmittedAt, string? Submitter, int EvaluationCount, decimal? AverageTotal, bool? RewardEligible, RewardOutcome? RewardOutcome, RepositoryKind? Repository, string? ProblemStatement = null, string? ProposedBenefit = null, int? AttachmentId = null, decimal? BoardScoreAverage = null);
 public sealed record ScoreLine(string BoardMember, int Novelty, int Feasibility, int Relevance, int BusinessImpact, int CommercialViability)
 { public int Total => Novelty + Feasibility + Relevance + BusinessImpact + CommercialViability; }
 public sealed record CompilationReview(IdeaRow Idea, IReadOnlyList<ScoreLine> Scores);
-public sealed record BoardIdeaRow(int Id, string ReferenceNumber, string Title, string Description, bool Evaluated);
+public sealed record BoardIdeaRow(int Id, string ReferenceNumber, string Title, string Description, DateTime SubmittedAt, string? ProblemStatement, string? ProposedBenefit, int? AttachmentId, bool Evaluated);
 public sealed record ManagerPage(IReadOnlyList<IdeaRow> Pending, IReadOnlyList<IdeaRow> PendingAddenda, IReadOnlyList<IdeaRow> AwaitingBoardEvaluation, IReadOnlyList<IdeaRow> ReadyToCompile, IReadOnlyList<MonthlyCompilation> Months, IReadOnlyList<IdeaRow> Repositories);

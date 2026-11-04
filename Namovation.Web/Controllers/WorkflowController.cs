@@ -76,7 +76,8 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
 
         var isManager = User.IsInRole("InnovateManager");
         var isOwnerEmployee = User.IsInRole("Employee") && !User.IsInRole("InnovateBoard") && attachment.Idea.SubmitterId == UserId;
-        if (!isManager && !isOwnerEmployee) return Forbid();
+        var isAssignedBoardReviewer = User.IsInRole("InnovateBoard") && attachment.Idea.Status == IdeaStatus.BoardEvaluation;
+        if (!isManager && !isOwnerEmployee && !isAssignedBoardReviewer) return Forbid();
 
         var stream = await documentStore.OpenReadAsync(attachment.StoredFileName);
         if (stream is null) return NotFound();
@@ -168,7 +169,10 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     public async Task<IActionResult> Board()
     {
         var items = await db.Ideas.Where(x => x.Status == IdeaStatus.BoardEvaluation)
-            .Select(x => new BoardIdeaRow(x.Id, x.ReferenceNumber, x.Screening!.BoardFacingTitle!, x.Screening.BoardFacingDescription!, x.Evaluations.Any(e => e.BoardMemberId == UserId))).ToListAsync();
+            .OrderBy(x => x.SubmittedAtUtc)
+            .Select(x => new BoardIdeaRow(x.Id, x.ReferenceNumber, x.Title, x.Description, x.SubmittedAtUtc,
+                x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id,
+                x.Evaluations.Any(e => e.BoardMemberId == UserId))).ToListAsync();
         return View(items);
     }
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "InnovateBoard")]
@@ -185,5 +189,8 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
             db.Users.Where(u => u.Id == x.SubmitterId).Select(u => (u.DisplayName != "" ? u.DisplayName : u.Email) + " · " + (u.Designation ?? "Designation not set") + " · " + (u.Location ?? "Location not set")).FirstOrDefault(), x.Evaluations.Count,
             x.Result == null ? null : x.Result.AverageTotal, x.Result == null ? null : x.Result.RewardEligible,
             x.Result == null ? null : x.Result.RewardOutcome, x.Result == null ? null : x.Result.Repository,
-            x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id)).ToListAsync();
+            x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id,
+            x.Evaluations.Count == EvaluationRules.RequiredBoardMembers
+                ? x.Evaluations.Average(e => (decimal)(e.Novelty + e.Feasibility + e.Relevance + e.BusinessImpact + e.CommercialViability))
+                : (decimal?)null)).ToListAsync();
 }

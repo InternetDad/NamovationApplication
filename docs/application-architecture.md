@@ -96,7 +96,7 @@ sequenceDiagram
     WC-->>UI: Redirect to My ideas with confirmation
 ```
 
-`IdeaInput` is an HTTP form model with validation attributes. It is not the database entity. `WorkflowService` creates the domain `Idea`, generates a unique reference, sets its initial status, creates its first status-history event, and persists both. An optional PDF, Word, Excel, PowerPoint, or text document (maximum 10 MB) is stored outside `wwwroot`; only its random storage name and metadata go into `IdeaAttachments`. Download authorization allows the submitting employee and Innovate Managers. Board accounts cannot fetch the original attachment, so it cannot bypass the anonymized board-facing text.
+`IdeaInput` is an HTTP form model with validation attributes. It is not the database entity. `WorkflowService` creates the domain `Idea`, generates a unique reference, sets its initial status, creates its first status-history event, and persists both. An optional PDF, Word, Excel, PowerPoint, or text document (maximum 10 MB) is stored outside `wwwroot`; only its random storage name and metadata go into `IdeaAttachments`. Download authorization allows the submitting employee, Innovate Managers, and board members while the idea is in `BoardEvaluation`.
 
 ### Manager screens and forwards ideas
 
@@ -108,7 +108,7 @@ sequenceDiagram
 
 ### Board evaluates, manager compiles
 
-1. `WorkflowController.Board` returns only ideas in `BoardEvaluation` and projects only the anonymized title, anonymized description, reference, and whether the current board member has submitted a review.
+1. `WorkflowController.Board` returns ideas in `BoardEvaluation` to a basic grid. Each row opens a details modal with the applicant-submitted title, problem/opportunity, description, expected benefit, attachment download when present, and the current board member's scoring form. The board view does not display submitter identity. Board attachment downloads are permitted only while an idea remains in `BoardEvaluation`.
 2. `Evaluate` validates the five scores; `WorkflowService.EvaluateAsync` also checks the idea status, score range 1–10, duplicate member evaluation, and maximum of three board evaluations. A serializable transaction and unique database index help prevent duplicate evaluation records.
 3. Once three evaluations exist, the manager can open `CompileReview`. `CompileAsync` verifies exactly three evaluations, calculates the average of their totals (maximum 50), and creates the compilation result.
 4. An average below 40 is filed in Repository 2. An average of 40 or more is marked eligible, but it is not automatically rewarded.

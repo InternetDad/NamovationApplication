@@ -36,13 +36,13 @@
                                 @if (!string.IsNullOrWhiteSpace(idea.ProblemStatement)) { <dt class="col-sm-4">Problem or opportunity</dt><dd class="col-sm-8 text-prewrap">@idea.ProblemStatement</dd> }
                                 <dt class="col-sm-4">Idea details</dt><dd class="col-sm-8 text-prewrap">@idea.Description</dd>
                                 @if (!string.IsNullOrWhiteSpace(idea.ProposedBenefit)) { <dt class="col-sm-4">Expected benefit</dt><dd class="col-sm-8 text-prewrap">@idea.ProposedBenefit</dd> }
-                                @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download attachment</a><span class="small text-secondary ms-2">Private to the employee and manager; not available to the board.</span></dd> }
+                                @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download attachment</a><span class="small text-secondary ms-2">Board members can access it after the idea is forwarded for evaluation.</span></dd> }
                             </dl>
                             <hr />
                             <form asp-action="Screen" method="post" id="screenForm-@idea.Id">
                                 <input type="hidden" name="id" value="@idea.Id" />
                                 <h3 class="h5">Manager screening</h3>
-                                <p class="text-secondary small">To shortlist, remove employee names, locations, and other identifying details from the title and description that the board will see. Shortlisted ideas join the monthly compilation for board evaluation.</p>
+                                <p class="text-secondary small">Shortlisted ideas join the monthly compilation. Board members can review the original submitted details and supporting document after forwarding.</p>
                                 <label class="form-label" for="boardTitle-@idea.Id">Anonymized title for board</label>
                                 <input id="boardTitle-@idea.Id" name="boardTitle" class="form-control mb-3" placeholder="Remove identifying details" />
                                 <label class="form-label" for="boardDescription-@idea.Id">Anonymized description for board</label>
@@ -93,7 +93,12 @@
 </section>
 <section class="mb-5"><h2>Ready to compile <span class="counter">@Model.ReadyToCompile.Count</span></h2>
     @if (Model.ReadyToCompile.Count == 0) { <p class="text-secondary">An idea appears here when three board members have submitted their scores.</p> }
-    <div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Scores</th><th></th></tr></thead><tbody>@foreach (var idea in Model.ReadyToCompile) { <tr><td>@idea.ReferenceNumber</td><td>@idea.Title</td><td>@idea.EvaluationCount / 3</td><td><a class="btn btn-sm btn-primary" asp-action="CompileReview" asp-route-id="@idea.Id">Review scores</a></td></tr> }</tbody></table></div>
+    else {
+        var aboveCutoffCount = Model.ReadyToCompile.Count(idea => idea.BoardScoreAverage is >= Namovation.Domain.EvaluationRules.RewardThreshold);
+        var belowCutoffCount = Model.ReadyToCompile.Count - aboveCutoffCount;
+        <p class="text-secondary">Reward consideration cutoff: @Namovation.Domain.EvaluationRules.RewardThreshold/50. <span class="badge text-bg-success">Meets cutoff: @aboveCutoffCount</span> <span class="badge text-bg-secondary">Below cutoff: @belowCutoffCount</span> Scores of exactly 40/50 meet the cutoff. Eligibility proceeds to the meeting decision; it does not approve a reward.</p>
+    }
+    <div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Average score</th><th>Cutoff result</th><th></th></tr></thead><tbody>@foreach (var idea in Model.ReadyToCompile) { <tr><td>@idea.ReferenceNumber</td><td>@idea.Title</td><td>@(idea.BoardScoreAverage?.ToString("0.00") ?? "—") / 50</td><td>@if (idea.BoardScoreAverage is >= Namovation.Domain.EvaluationRules.RewardThreshold) { <span class="badge text-bg-success">Meets cutoff · eligible</span> } else { <span class="badge text-bg-secondary">Below cutoff</span> }</td><td><a class="btn btn-sm btn-primary" asp-action="CompileReview" asp-route-id="@idea.Id">Review scores</a></td></tr> }</tbody></table></div>
 </section>
 <section class="mb-5"><h2>Reward meeting decisions</h2><p class="text-secondary">Only ideas averaging at least 40/50 are eligible for the meeting decision. Qualification does not automatically approve a reward.</p>
 @foreach (var idea in Model.Repositories.Where(x => x.RewardEligible == true && x.RewardOutcome == Namovation.Domain.RewardOutcome.Pending)) { <article class="card mb-3"><div class="card-body"><div class="eyebrow">@idea.ReferenceNumber · @idea.AverageTotal/50</div><h3>@idea.Title</h3><p>@idea.Description</p><form asp-action="RewardDecision" method="post" class="d-flex gap-2 flex-wrap"><input type="hidden" name="id" value="@idea.Id"/><select name="outcome" class="form-select decision"><option value="Rewarded">Reward</option><option value="Appreciated">Appreciation</option><option value="NotSelected">Not selected</option></select><input name="notes" class="form-control rationale" placeholder="Meeting notes (optional)"/><button class="btn btn-primary">Record decision</button></form></div></article> }

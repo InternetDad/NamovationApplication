@@ -1,6 +1,64 @@
 @model IReadOnlyList<Namovation.Web.Models.BoardIdeaRow>
 @{ ViewData["Title"] = "Board evaluations"; }
-<h1>Board evaluations</h1><p class="text-secondary">Score each shortlisted idea independently. Only its system reference and idea details are shown here.</p>
-@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> } @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-@if (Model.Count == 0) { <div class="empty-state"><h2>No ideas are awaiting evaluation</h2><p>New ideas will appear after the manager forwards a monthly compilation.</p></div> }
-@foreach (var idea in Model) { <article class="card idea-card mb-3"><div class="card-body"><div class="eyebrow">@idea.ReferenceNumber</div><h2>@idea.Title</h2><p>@idea.Description</p>@if (idea.Evaluated) { <div class="alert alert-success mb-0">Your evaluation has been submitted.</div> } else { <form asp-action="Evaluate" method="post" class="score-form"><input type="hidden" name="IdeaId" value="@idea.Id"/>@foreach (var parameter in new[] { ("Novelty", "Novelty"), ("Feasibility", "Feasibility"), ("Relevance", "Relevance"), ("BusinessImpact", "Business impact"), ("CommercialViability", "Commercial viability") }) { <label>@parameter.Item2 <select name="@parameter.Item1" class="form-select" required>@for (int n = 1; n <= 10; n++) { <option value="@n" selected="@(n == 5)">@n</option> }</select></label> }<button class="btn btn-primary">Submit evaluation</button></form> }</div></article> }
+<div class="page-heading"><div><h1>Board evaluations</h1><p class="text-secondary">Review each forwarded idea, its submitted details, and any supporting document before scoring it independently.</p></div></div>
+@if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
+@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+@if (Model.Count == 0) {
+    <div class="empty-state"><h2>No ideas are awaiting evaluation</h2><p>Ideas will appear here after the manager forwards a monthly compilation.</p></div>
+} else {
+    <div class="table-responsive card mb-4">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Reference</th><th>Idea</th><th>Submitted</th><th>My evaluation</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+            @foreach (var idea in Model) {
+                <tr>
+                    <td class="text-nowrap">@idea.ReferenceNumber</td>
+                    <td class="fw-semibold">@idea.Title</td>
+                    <td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                    <td>@(idea.Evaluated ? "Submitted" : "Needed")</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#boardIdea-@idea.Id">View details</button></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @foreach (var idea in Model) {
+        <div class="modal fade" id="boardIdea-@idea.Id" tabindex="-1" aria-labelledby="boardIdeaLabel-@idea.Id" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div><div class="eyebrow">@idea.ReferenceNumber · @idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</div><h2 class="modal-title fs-4 mt-2 mb-0" id="boardIdeaLabel-@idea.Id">@idea.Title</h2></div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <dl class="row idea-detail-list">
+                            @if (!string.IsNullOrWhiteSpace(idea.ProblemStatement)) { <dt class="col-sm-4">Problem or opportunity</dt><dd class="col-sm-8 text-prewrap">@idea.ProblemStatement</dd> }
+                            <dt class="col-sm-4">Idea details</dt><dd class="col-sm-8 text-prewrap">@idea.Description</dd>
+                            @if (!string.IsNullOrWhiteSpace(idea.ProposedBenefit)) { <dt class="col-sm-4">Expected benefit</dt><dd class="col-sm-8 text-prewrap">@idea.ProposedBenefit</dd> }
+                            @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download applicant document</a></dd> }
+                        </dl>
+                        @if (idea.Evaluated) {
+                            <div class="alert alert-success mb-0">You have submitted your evaluation for this idea.</div>
+                        } else {
+                            <hr />
+                            <h3 class="h5">Your independent evaluation</h3>
+                            <p class="text-secondary small">Score each criterion from 1 to 10. Your evaluation is submitted independently.</p>
+                            <form asp-action="Evaluate" method="post" id="boardScore-@idea.Id">
+                                <input type="hidden" name="IdeaId" value="@idea.Id" />
+                                <div class="row g-3">
+                                @foreach (var parameter in new[] { ("Novelty", "Novelty"), ("Feasibility", "Feasibility"), ("Relevance", "Relevance"), ("BusinessImpact", "Business impact"), ("CommercialViability", "Commercial viability") }) {
+                                    <div class="col-md-6"><label class="form-label" for="@parameter.Item1-@idea.Id">@parameter.Item2</label><select id="@parameter.Item1-@idea.Id" name="@parameter.Item1" class="form-select" required>@for (int n = 1; n <= 10; n++) { <option value="@n" selected="@(n == 5)">@n</option> }</select></div>
+                                }
+                                </div>
+                            </form>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                        @if (!idea.Evaluated) { <button type="submit" form="boardScore-@idea.Id" class="btn btn-primary">Submit evaluation</button> }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}

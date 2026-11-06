@@ -1,15 +1,17 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Namovation.Application;
+using Namovation.Domain;
 using Namovation.Infrastructure.Data;
 using Namovation.Web.Models;
 
 namespace Namovation.Web.Controllers;
 
 [Authorize(Roles = "Admin")]
-public sealed class AdminController(UserManager<NamovationUser> users, IRegistrationSettingsService registrationSettings) : Controller
+public sealed class AdminController(UserManager<NamovationUser> users, IRegistrationSettingsService registrationSettings, NamovationDbContext db) : Controller
 {
     private static readonly string[] ManagedRoles = ["Employee", "InnovateManager", "InnovateBoard", "Admin"];
 
@@ -23,6 +25,65 @@ public sealed class AdminController(UserManager<NamovationUser> users, IRegistra
             rows.Add(new AdminUserRow(user.Id, user.Email ?? "", user.DisplayName, user.Designation, user.Location, assigned));
         }
         return View(rows);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Departments() => View(await BuildDepartmentsPageAsync());
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateDepartment(DepartmentInput input)
+    {
+        var manager = await users.FindByIdAsync(input.ManagerId);
+        if (!ModelState.IsValid || manager is null || !await users.IsInRoleAsync(manager, "InnovateManager"))
+            TempData["Error"] = "Enter a department name and select a user with the InnovateManager role.";
+        else
+        {
+            var normalizedName = input.Name.Trim().ToUpperInvariant();
+            if (await db.Departments.AnyAsync(x => x.NormalizedName == normalizedName))
+                TempData["Error"] = "A department with that name already exists.";
+            else
+            {
+                db.Departments.Add(new Department { Name = input.Name.Trim(), NormalizedName = normalizedName, ManagerId = manager.Id });
+                await db.SaveChangesAsync();
+                TempData["Message"] = $"Department {input.Name.Trim()} was created and assigned to {manager.DisplayName}.";
+            }
+        }
+        return RedirectToAction(nameof(Departments));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetDepartmentManager(int id, DepartmentManagerInput input)
+    {
+        var department = await db.Departments.SingleOrDefaultAsync(x => x.Id == id);
+        var manager = await users.FindByIdAsync(input.ManagerId);
+        if (department is null)
+            TempData["Error"] = "Department not found.";
+        else if (!ModelState.IsValid || manager is null || !await users.IsInRoleAsync(manager, "InnovateManager"))
+            TempData["Error"] = "Select a user with the InnovateManager role.";
+        else
+        {
+            department.ManagerId = manager.Id;
+            await db.SaveChangesAsync();
+            TempData["Message"] = $"{department.Name} is now managed by {manager.DisplayName}.";
+        }
+        return RedirectToAction(nameof(Departments));
+    }
+
+    private async Task<DepartmentAdminPage> BuildDepartmentsPageAsync()
+    {
+        var managers = await DepartmentManagerChoicesAsync();
+        var departments = await db.Departments.OrderBy(x => x.Name)
+            .Select(x => new DepartmentAdminRow(x.Id, x.Name, x.ManagerId,
+                db.Users.Where(u => u.Id == x.ManagerId).Select(u => u.DisplayName).FirstOrDefault() ?? "",
+                x.Ideas.Count())).ToListAsync();
+        return new DepartmentAdminPage(departments, managers);
+    }
+
+    private async Task<IReadOnlyList<SelectListItem>> DepartmentManagerChoicesAsync()
+    {
+        var managers = await users.GetUsersInRoleAsync("InnovateManager");
+        return managers.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new SelectListItem(string.IsNullOrWhiteSpace(x.Designation) ? x.DisplayName : $"{x.DisplayName} · {x.Designation}", x.Id)).ToList();
     }
 
     [HttpGet]
@@ -40,52 +101,6 @@ public sealed class AdminController(UserManager<NamovationUser> users, IRegistra
             ? "Authenticator setup is required for new self-registrations."
             : "Authenticator setup is optional for new self-registrations.";
         return RedirectToAction(nameof(RegistrationSettings));
-    }
-
-    [HttpGet]
-    public IActionResult CreateUser() => View(new AdminCreateUserInput());
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateUser(AdminCreateUserInput input)
-    {
-        var selected = input.Roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (selected.Length == 0) ModelState.AddModelError(nameof(input.Roles), "Choose at least one role.");
-        if (selected.Except(ManagedRoles, StringComparer.OrdinalIgnoreCase).Any()) ModelState.AddModelError(nameof(input.Roles), "One or more selected roles are invalid.");
-        if (!ModelState.IsValid) return View(input);
-
-        var email = input.Email.Trim();
-        if (await users.FindByEmailAsync(email) is not null)
-        {
-            ModelState.AddModelError(nameof(input.Email), "An account with this email already exists.");
-            return View(input);
-        }
-
-        var user = new NamovationUser
-        {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            DisplayName = input.DisplayName.Trim(),
-            Designation = input.Designation?.Trim(),
-            Location = input.Location?.Trim()
-        };
-        var createResult = await users.CreateAsync(user, input.Password);
-        if (!createResult.Succeeded)
-        {
-            foreach (var error in createResult.Errors) ModelState.AddModelError(string.Empty, error.Description);
-            return View(input);
-        }
-
-        var roleResult = await users.AddToRolesAsync(user, selected);
-        if (!roleResult.Succeeded)
-        {
-            await users.DeleteAsync(user);
-            foreach (var error in roleResult.Errors) ModelState.AddModelError(string.Empty, error.Description);
-            return View(input);
-        }
-
-        TempData["Message"] = $"Account created for {email}. Share the initial password with the user securely.";
-        return RedirectToAction(nameof(Users));
     }
 
     [HttpPost, ValidateAntiForgeryToken]

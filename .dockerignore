@@ -1,0 +1,9 @@
+.git/
+.vs/
+**/bin/
+**/obj/
+**/*.user
+**/*.suo
+Namovation.Web/App_Data/
+work/
+outputs/

@@ -6,13 +6,14 @@ namespace Namovation.Web.Models;
 
 public sealed class IdeaInput
 {
+    [Required(ErrorMessage = "Choose a department for this idea.")] public int? DepartmentId { get; set; }
     [Required, StringLength(180)] public string Title { get; set; } = "";
     [Required, StringLength(6000, MinimumLength = 20)] public string Description { get; set; } = "";
     [StringLength(2000)] public string? ProblemStatement { get; set; }
     [StringLength(2000)] public string? ProposedBenefit { get; set; }
     public IFormFile? SupportingDocument { get; set; }
 }
-public sealed class ScreenInput { public int Id { get; set; } public bool Shortlist { get; set; } public string? Rationale { get; set; } public string? BoardTitle { get; set; } public string? BoardDescription { get; set; } }
+public sealed class ScreenInput { public int Id { get; set; } public bool Shortlist { get; set; } public string? Rationale { get; set; } public string? BoardDescription { get; set; } }
 public sealed class ScoreInput
 {
     public int IdeaId { get; set; }
@@ -22,9 +23,11 @@ public sealed class ScoreInput
     [Range(1,10)] public int BusinessImpact { get; set; } = 5;
     [Range(1,10)] public int CommercialViability { get; set; } = 5;
 }
-public sealed record IdeaRow(int Id, string ReferenceNumber, string Title, string? Description, IdeaStatus Status, DateTime SubmittedAt, string? Submitter, int EvaluationCount, decimal? AverageTotal, bool? RewardEligible, RewardOutcome? RewardOutcome, RepositoryKind? Repository, string? ProblemStatement = null, string? ProposedBenefit = null, int? AttachmentId = null, decimal? BoardScoreAverage = null);
+public sealed record IdeaRow(int Id, string ReferenceNumber, string Title, string? Description, IdeaStatus Status, DateTime SubmittedAt, string? Submitter, int EvaluationCount, decimal? AverageTotal, bool? RewardEligible, RewardOutcome? RewardOutcome, RepositoryKind? Repository, string? ProblemStatement = null, string? ProposedBenefit = null, int? AttachmentId = null, decimal? BoardScoreAverage = null, string? DepartmentName = null);
 public sealed record ScoreLine(string BoardMember, int Novelty, int Feasibility, int Relevance, int BusinessImpact, int CommercialViability)
 { public int Total => Novelty + Feasibility + Relevance + BusinessImpact + CommercialViability; }
 public sealed record CompilationReview(IdeaRow Idea, IReadOnlyList<ScoreLine> Scores);
-public sealed record BoardIdeaRow(int Id, string ReferenceNumber, string Title, string Description, DateTime SubmittedAt, string? ProblemStatement, string? ProposedBenefit, int? AttachmentId, bool Evaluated);
+public sealed record BoardIdeaRow(int Id, string ReferenceNumber, string Title, string Description, DateTime SubmittedAt, string? ProblemStatement, string? ProposedBenefit, int? AttachmentId, bool Evaluated, string? ManagerDescription, string? ManagerNote);
 public sealed record ManagerPage(IReadOnlyList<IdeaRow> Pending, IReadOnlyList<IdeaRow> PendingAddenda, IReadOnlyList<IdeaRow> AwaitingBoardEvaluation, IReadOnlyList<IdeaRow> ReadyToCompile, IReadOnlyList<MonthlyCompilation> Months, IReadOnlyList<IdeaRow> Repositories);
+public sealed record DepartmentAdminRow(int Id, string Name, string ManagerId, string ManagerName, int IdeaCount);
+public sealed record DepartmentAdminPage(IReadOnlyList<DepartmentAdminRow> Departments, IReadOnlyList<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> Managers);

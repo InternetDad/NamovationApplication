@@ -9,6 +9,7 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
 
 {
     public DbSet<Idea> Ideas => Set<Idea>();
+    public DbSet<Department> Departments => Set<Department>();
     public DbSet<MonthlyCompilation> MonthlyCompilations => Set<MonthlyCompilation>();
     public DbSet<Screening> Screenings => Set<Screening>();
     public DbSet<BoardEvaluation> BoardEvaluations => Set<BoardEvaluation>();
@@ -20,11 +21,19 @@ public sealed class NamovationDbContext(DbContextOptions<NamovationDbContext> op
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
+        b.Entity<Department>().Property(x => x.Name).HasMaxLength(120).IsRequired();
+        b.Entity<Department>().Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
+        b.Entity<Department>().HasIndex(x => x.NormalizedName).IsUnique();
+        b.Entity<Department>().HasIndex(x => x.ManagerId);
+        b.Entity<Department>().HasOne<NamovationUser>().WithMany().HasForeignKey(x => x.ManagerId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Departments_AspNetUsers_ManagerId");
         b.Entity<Idea>().HasIndex(x => x.ReferenceNumber).IsUnique();
         b.Entity<Idea>().Property(x => x.Title).HasMaxLength(180).IsRequired();
         b.Entity<Idea>().Property(x => x.Description).HasMaxLength(6000).IsRequired();
         b.Entity<Idea>().HasIndex(x => new { x.SubmitterId, x.SubmittedAtUtc });
-        b.Entity<MonthlyCompilation>().HasIndex(x => new { x.Year, x.Month }).IsUnique();
+        b.Entity<Idea>().HasIndex(x => x.DepartmentId);
+        b.Entity<Idea>().HasOne(x => x.Department).WithMany(x => x.Ideas).HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.SetNull);
+        b.Entity<MonthlyCompilation>().HasIndex(x => new { x.Year, x.Month, x.CreatedById }).IsUnique();
         b.Entity<Screening>().HasIndex(x => x.IdeaId).IsUnique();
         b.Entity<BoardEvaluation>().HasIndex(x => new { x.IdeaId, x.BoardMemberId }).IsUnique();
         b.Entity<IdeaCompilation>().HasIndex(x => x.IdeaId).IsUnique();

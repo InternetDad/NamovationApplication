@@ -7,3 +7,4 @@ work/
 *.suo
 appsettings.*.json
 !appsettings.json
+_build-check/

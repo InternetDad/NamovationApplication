@@ -10,19 +10,9 @@ public sealed class AdminRegistrationSettingsInput
     public bool AuthenticatorSetupRequired { get; set; }
 }
 
-public sealed class AdminCreateUserInput
-{
-    [Required, EmailAddress, StringLength(256)] public string Email { get; set; } = "";
-    [Required, StringLength(160)] public string DisplayName { get; set; } = "";
-    [StringLength(120)] public string? Designation { get; set; }
-    [StringLength(120)] public string? Location { get; set; }
-    [Required, DataType(DataType.Password), MinLength(10)] public string Password { get; set; } = "";
-    [Required, DataType(DataType.Password), Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
-    public List<string> Roles { get; set; } = ["Employee"];
-}
-
 public sealed class FirstAdminInput
 {
+    [StringLength(200)] public string SetupToken { get; set; } = "";
     [Required, EmailAddress, StringLength(256)] public string Email { get; set; } = "";
     [Required, StringLength(160)] public string DisplayName { get; set; } = "";
     [Required, DataType(DataType.Password), MinLength(10)] public string Password { get; set; } = "";
@@ -37,6 +27,17 @@ public sealed class RegisterInput
     [StringLength(120)] public string? Location { get; set; }
     [Required, DataType(DataType.Password), MinLength(10)] public string Password { get; set; } = "";
     [Required, DataType(DataType.Password), Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
+}
+
+public sealed class DepartmentInput
+{
+    [Required, StringLength(120)] public string Name { get; set; } = "";
+    [Required] public string ManagerId { get; set; } = "";
+}
+
+public sealed class DepartmentManagerInput
+{
+    [Required] public string ManagerId { get; set; } = "";
 }
 
 public sealed class AuthenticatorSetupInput

@@ -11,7 +11,7 @@ namespace Namovation.Web.Controllers;
 
 public sealed class AccountController(UserManager<NamovationUser> users, RoleManager<IdentityRole> roles,
     SignInManager<NamovationUser> signIn, IWebHostEnvironment environment,
-    IRegistrationSettingsService registrationSettings, ILogger<AccountController> logger) : Controller
+    IRegistrationSettingsService registrationSettings, ILogger<AccountController> logger, IConfiguration configuration) : Controller
 {
     private const string RegistrationTokenProvider = "Namovation";
     private const string AuthenticatorSetupPendingToken = "AuthenticatorSetupPending";
@@ -114,8 +114,7 @@ public sealed class AccountController(UserManager<NamovationUser> users, RoleMan
             return RedirectToAction(nameof(SetupAuthenticator));
         }
 
-        await AssignDevelopmentEmployeeRoleAsync(user);
-        ViewBag.RequiresAdminApproval = !environment.IsDevelopment();
+        await AssignEmployeeRoleAsync(user);
         ViewBag.AuthenticatorSetupSkipped = true;
         return View("RegistrationComplete");
     }
@@ -192,7 +191,7 @@ public sealed class AccountController(UserManager<NamovationUser> users, RoleMan
 
         await users.RemoveAuthenticationTokenAsync(user, RegistrationTokenProvider, AuthenticatorSetupPendingToken);
         var recoveryCodes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10) ?? [];
-        await AssignDevelopmentEmployeeRoleAsync(user);
+        await AssignEmployeeRoleAsync(user);
         await signIn.RefreshSignInAsync(user);
         return View("AuthenticatorSetupComplete", new AuthenticatorSetupCompleteViewModel(recoveryCodes.ToArray()));
     }
@@ -205,19 +204,19 @@ public sealed class AccountController(UserManager<NamovationUser> users, RoleMan
             ? LocalRedirect(returnUrl)
             : RedirectToAction("Index", "Home");
 
-    private async Task AssignDevelopmentEmployeeRoleAsync(NamovationUser user)
+    private async Task AssignEmployeeRoleAsync(NamovationUser user)
     {
-        if (!environment.IsDevelopment() || !await roles.RoleExistsAsync("Employee")) return;
-        if ((await users.GetRolesAsync(user)).Count > 0) return;
+        if (!await roles.RoleExistsAsync("Employee")) return;
+        if (await users.IsInRoleAsync(user, "Employee")) return;
         var result = await users.AddToRoleAsync(user, "Employee");
         if (!result.Succeeded)
-            logger.LogError("Account {UserId} was created but the Development Employee role could not be assigned.", user.Id);
+            logger.LogError("Account {UserId} was created but the Employee role could not be assigned.", user.Id);
     }
 
     [HttpGet]
     public async Task<IActionResult> SetupFirstAdmin()
     {
-        if (!environment.IsDevelopment()) return NotFound();
+        if (!CanSetUpFirstAdmin()) return NotFound();
         if (await users.GetUsersInRoleAsync("Admin") is { Count: > 0 }) return RedirectToAction(nameof(Login));
         return View(new FirstAdminInput());
     }
@@ -225,7 +224,9 @@ public sealed class AccountController(UserManager<NamovationUser> users, RoleMan
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> SetupFirstAdmin(FirstAdminInput input)
     {
-        if (!environment.IsDevelopment()) return NotFound();
+        if (!CanSetUpFirstAdmin()) return NotFound();
+        if (!environment.IsDevelopment() && !IsValidSetupToken(input.SetupToken))
+            ModelState.AddModelError(nameof(input.SetupToken), "The one-time setup key is incorrect.");
         if (!ModelState.IsValid) return View(input);
 
         await FirstAdminLock.WaitAsync();
@@ -263,5 +264,18 @@ public sealed class AccountController(UserManager<NamovationUser> users, RoleMan
             return RedirectToAction("Users", "Admin");
         }
         finally { FirstAdminLock.Release(); }
+    }
+
+    private bool CanSetUpFirstAdmin() => environment.IsDevelopment()
+        || !string.IsNullOrWhiteSpace(configuration["INITIAL_ADMIN_SETUP_TOKEN"]);
+
+    private bool IsValidSetupToken(string supplied)
+    {
+        var expected = configuration["INITIAL_ADMIN_SETUP_TOKEN"];
+        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrEmpty(supplied)) return false;
+        var expectedBytes = System.Text.Encoding.UTF8.GetBytes(expected);
+        var suppliedBytes = System.Text.Encoding.UTF8.GetBytes(supplied);
+        return expectedBytes.Length == suppliedBytes.Length
+            && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
     }
 }

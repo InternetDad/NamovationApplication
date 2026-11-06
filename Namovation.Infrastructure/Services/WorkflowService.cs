@@ -11,14 +11,16 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
 {
     private const long MaxSupportingDocumentBytes = 10 * 1024 * 1024;
 
-    public async Task<Idea> SubmitIdeaAsync(string employeeId, string title, string description, string? problem, string? benefit, SupportingDocumentUpload? attachment = null, CancellationToken ct = default)
+    public async Task<Idea> SubmitIdeaAsync(string employeeId, int departmentId, string title, string description, string? problem, string? benefit, SupportingDocumentUpload? attachment = null, CancellationToken ct = default)
     {
+        if (!await db.Departments.AnyAsync(x => x.Id == departmentId, ct))
+            throw new WorkflowException("Choose an active department before submitting your idea.");
         if (attachment is not null && (attachment.SizeBytes <= 0 || attachment.SizeBytes > MaxSupportingDocumentBytes))
             throw new WorkflowException("The supporting document must be smaller than 10 MB.");
 
         var idea = new Idea {
             ReferenceNumber = $"N-{DateTime.UtcNow:yyyy}-{Guid.NewGuid():N}"[..15].ToUpperInvariant(),
-            SubmitterId = employeeId, Title = title.Trim(), Description = description.Trim(),
+            SubmitterId = employeeId, DepartmentId = departmentId, Title = title.Trim(), Description = description.Trim(),
             ProblemStatement = problem?.Trim(), ProposedBenefit = benefit?.Trim(), SubmittedAtUtc = DateTime.UtcNow,
             Status = IdeaStatus.Submitted
         };
@@ -68,20 +70,22 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
         _ => "application/octet-stream"
     };
 
-    public async Task<bool> ScreenAsync(int ideaId, string managerId, bool shortlist, string? rationale, string? boardTitle, string? boardDescription, CancellationToken ct = default)
+    public async Task<bool> ScreenAsync(int ideaId, string managerId, bool shortlist, string? rationale, string? boardDescription, CancellationToken ct = default)
     {
         var addendumRequiresForwarding = false;
         var idea = await db.Ideas.Include(x => x.Screening).Include(x => x.MonthlyCompilation)
             .SingleOrDefaultAsync(x => x.Id == ideaId, ct) ?? throw new WorkflowException("Idea not found.");
+        if (idea.DepartmentId is not int departmentId ||
+            !await db.Departments.AnyAsync(x => x.Id == departmentId && x.ManagerId == managerId, ct))
+            throw new WorkflowException("This idea belongs to a department you do not manage.");
         if (idea.Status != IdeaStatus.Submitted) throw new WorkflowException("Only newly submitted ideas can be screened.");
         idea.Screening = new Screening { ManagerId = managerId, Shortlisted = shortlist, Rationale = rationale?.Trim(), ScreenedAtUtc = DateTime.UtcNow };
         if (shortlist)
         {
-            if (string.IsNullOrWhiteSpace(boardTitle) || string.IsNullOrWhiteSpace(boardDescription)) throw new WorkflowException("Provide the anonymized title and description that the board will review.");
-            idea.Screening.BoardFacingTitle = boardTitle.Trim();
+            if (string.IsNullOrWhiteSpace(boardDescription)) throw new WorkflowException("Provide the manager's description that the board will review.");
             idea.Screening.BoardFacingDescription = boardDescription.Trim();
             var month = idea.SubmittedAtUtc;
-            var batch = await db.MonthlyCompilations.SingleOrDefaultAsync(x => x.Year == month.Year && x.Month == month.Month, ct);
+            var batch = await db.MonthlyCompilations.SingleOrDefaultAsync(x => x.Year == month.Year && x.Month == month.Month && x.CreatedById == managerId, ct);
             if (batch is null) { batch = new MonthlyCompilation { Year = month.Year, Month = month.Month, CreatedById = managerId }; db.MonthlyCompilations.Add(batch); }
             idea.MonthlyCompilation = batch;
 
@@ -104,7 +108,7 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
         return addendumRequiresForwarding;
     }
 
-    public async Task<int> RequeueUnreviewedAutoAddendaAsync(CancellationToken ct = default)
+    public async Task<int> RequeueUnreviewedAutoAddendaAsync(string managerId, CancellationToken ct = default)
     {
         // Compatibility repair: an earlier version sent late addenda straight to the board.
         // Return only those with no board evaluations to the manager queue; never roll back
@@ -115,6 +119,7 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
             .Where(x => x.Status == IdeaStatus.BoardEvaluation
                 && !x.Evaluations.Any()
                 && x.MonthlyCompilation != null
+                && x.MonthlyCompilation.CreatedById == managerId
                 && x.MonthlyCompilation.ForwardedToBoard
                 && x.StatusHistory.Any(e => e.Note != null && e.Note.Contains("added to board evaluation as an addendum"))
                 // Old history remains after an idea is manually forwarded. Without this
@@ -137,7 +142,7 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
     {
         if (month is < 1 or > 12) throw new WorkflowException("Choose a valid month.");
         var batch = await db.MonthlyCompilations
-            .SingleOrDefaultAsync(x => x.Year == year && x.Month == month, ct) ?? throw new WorkflowException("No screened ideas are ready for this month.");
+            .SingleOrDefaultAsync(x => x.Year == year && x.Month == month && x.CreatedById == managerId, ct) ?? throw new WorkflowException("No screened ideas are ready for this month.");
 
         // For a normal monthly forward, every idea in the batch must be screened first.
         // For an addendum, the batch itself stays Forwarded; only newly shortlisted ideas
@@ -189,7 +194,8 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
 
     public async Task<IdeaCompilation> CompileAsync(int ideaId, string managerId, CancellationToken ct = default)
     {
-        var idea = await db.Ideas.Include(x => x.Evaluations).Include(x => x.Result).SingleOrDefaultAsync(x => x.Id == ideaId, ct) ?? throw new WorkflowException("Idea not found.");
+        var idea = await db.Ideas.Include(x => x.Evaluations).Include(x => x.Result).Include(x => x.Screening).SingleOrDefaultAsync(x => x.Id == ideaId, ct) ?? throw new WorkflowException("Idea not found.");
+        if (idea.Screening?.ManagerId != managerId) throw new WorkflowException("This idea is not assigned to your team.");
         if (idea.Status != IdeaStatus.BoardEvaluation || idea.Result is not null) throw new WorkflowException("This idea is not ready for compilation.");
         if (idea.Evaluations.Count != EvaluationRules.RequiredBoardMembers) throw new WorkflowException("Exactly three board evaluations are required before compilation.");
         var average = EvaluationRules.Average(idea.Evaluations);
@@ -204,7 +210,8 @@ public sealed class WorkflowService(NamovationDbContext db, IIdeaDocumentStore d
 
     public async Task DecideRewardAsync(int ideaId, string managerId, RewardOutcome outcome, string? notes, CancellationToken ct = default)
     {
-        var idea = await db.Ideas.Include(x => x.Result).SingleOrDefaultAsync(x => x.Id == ideaId, ct) ?? throw new WorkflowException("Idea not found.");
+        var idea = await db.Ideas.Include(x => x.Result).Include(x => x.Screening).SingleOrDefaultAsync(x => x.Id == ideaId, ct) ?? throw new WorkflowException("Idea not found.");
+        if (idea.Screening?.ManagerId != managerId) throw new WorkflowException("This idea is not assigned to your team.");
         if (idea.Result is null || !idea.Result.RewardEligible || idea.Status != IdeaStatus.Compiled) throw new WorkflowException("Only threshold-qualified ideas awaiting the meeting decision can be finalized.");
         if (outcome == RewardOutcome.Pending) throw new WorkflowException("Choose a final meeting outcome.");
         idea.Result.RewardOutcome = outcome;

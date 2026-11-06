@@ -1,0 +1,52 @@
+@model Namovation.Web.Models.DepartmentAdminPage
+@{ ViewData["Title"] = "Departments"; }
+<div class="page-heading"><div><p class="eyebrow">TEAM ROUTING</p><h1>Departments</h1><p class="text-secondary">Assign one manager to each department. Employees choose a department when they submit an idea.</p></div></div>
+@if (TempData["Message"] is string message) { <div class="alert alert-success">@message</div> }
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+
+<section class="form-panel mb-5">
+    <h2 class="h4">Add a department</h2>
+    @if (Model.Managers.Count == 0)
+    {
+        <p class="text-secondary mb-0">No users have the InnovateManager role yet. Register the manager, assign that role under User management, then return here.</p>
+    }
+    else
+    {
+        <form asp-action="CreateDepartment" method="post">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5"><label for="Name" class="form-label">Department name</label><input id="Name" name="Name" class="form-control" maxlength="120" required /></div>
+                <div class="col-md-5"><label for="ManagerId" class="form-label">Manager</label><select id="ManagerId" name="ManagerId" asp-items="Model.Managers" class="form-select" required><option value="">Choose a manager</option></select></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100">Add department</button></div>
+            </div>
+        </form>
+    }
+</section>
+
+<section>
+    <h2>Configured departments</h2>
+    @if (Model.Departments.Count == 0)
+    {
+        <p class="text-secondary">No departments have been configured yet.</p>
+    }
+    else
+    {
+        <div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr><th>Department</th><th>Ideas</th><th>Assigned manager</th><th></th></tr></thead><tbody>
+        @foreach (var department in Model.Departments)
+        {
+            <tr><td><strong>@department.Name</strong></td><td>@department.IdeaCount</td><td colspan="2">
+                <form asp-action="SetDepartmentManager" method="post" class="d-flex gap-2">
+                    <input type="hidden" name="id" value="@department.Id" />
+                    <select name="ManagerId" class="form-select" aria-label="Manager for @department.Name">
+                    @foreach (var manager in Model.Managers)
+                    {
+                        if (manager.Value == department.ManagerId) { <option value="@manager.Value" selected>@manager.Text</option> }
+                        else { <option value="@manager.Value">@manager.Text</option> }
+                    }
+                    </select>
+                    <button class="btn btn-outline-primary text-nowrap">Save manager</button>
+                </form>
+            </td></tr>
+        }
+        </tbody></table></div>
+    }
+</section>

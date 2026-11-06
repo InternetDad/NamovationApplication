@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Namovation.Application;
 using Namovation.Domain;
@@ -17,10 +18,10 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     private string UserId => users.GetUserId(User)!;
     [Authorize(Roles = "Employee")]
     public async Task<IActionResult> Mine() => View(await db.Ideas.Where(x => x.SubmitterId == UserId).OrderByDescending(x => x.SubmittedAtUtc)
-        .Select(x => new IdeaRow(x.Id, x.ReferenceNumber, x.Title, null, x.Status, x.SubmittedAtUtc, null, x.Evaluations.Count, x.Result == null ? null : x.Result.AverageTotal, x.Result == null ? null : x.Result.RewardEligible, x.Result == null ? null : x.Result.RewardOutcome, x.Result == null ? null : x.Result.Repository, null, null, x.Attachment == null ? null : x.Attachment.Id)).ToListAsync());
+        .Select(x => new IdeaRow(x.Id, x.ReferenceNumber, x.Title, null, x.Status, x.SubmittedAtUtc, null, x.Evaluations.Count, x.Result == null ? null : x.Result.AverageTotal, x.Result == null ? null : x.Result.RewardEligible, x.Result == null ? null : x.Result.RewardOutcome, x.Result == null ? null : x.Result.Repository, null, null, x.Attachment == null ? null : x.Attachment.Id, null, x.Department == null ? null : x.Department.Name)).ToListAsync());
 
     [Authorize(Roles = "Employee")]
-    public IActionResult Submit() => View(new IdeaInput());
+    public async Task<IActionResult> Submit() { await PopulateDepartmentsAsync(); return View(new IdeaInput()); }
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "Employee"), RequestSizeLimit(11 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 11 * 1024 * 1024)]
     public async Task<IActionResult> Submit(IdeaInput input)
     {
@@ -33,33 +34,40 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
             else if (file.Length > MaxSupportingDocumentBytes) ModelState.AddModelError(nameof(input.SupportingDocument), "The document must be 10 MB or smaller.");
             else if (!AllowedDocumentExtensions.Contains(extension)) ModelState.AddModelError(nameof(input.SupportingDocument), "Use a PDF, Word, Excel, PowerPoint, or plain text file.");
         }
-        if (!ModelState.IsValid) return View(input);
+        var departmentId = input.DepartmentId.GetValueOrDefault();
+        if (input.DepartmentId is null || !await db.Departments.AnyAsync(d => d.Id == departmentId && d.ManagerId != null))
+            ModelState.AddModelError(nameof(input.DepartmentId), "Choose a department that has an assigned manager.");
+        if (!ModelState.IsValid) { await PopulateDepartmentsAsync(input.DepartmentId); return View(input); }
 
         using var stream = file?.OpenReadStream();
         var upload = file is null ? null : new SupportingDocumentUpload(stream!, file.FileName, file.Length);
         Idea idea;
-        try { idea = await workflow.SubmitIdeaAsync(UserId, input.Title, input.Description, input.ProblemStatement, input.ProposedBenefit, upload); }
+        try { idea = await workflow.SubmitIdeaAsync(UserId, departmentId, input.Title, input.Description, input.ProblemStatement, input.ProposedBenefit, upload); }
         catch (WorkflowException error)
         {
             ModelState.AddModelError(string.Empty, error.Message);
+            await PopulateDepartmentsAsync(input.DepartmentId);
             return View(input);
         }
         catch (DbUpdateException error)
         {
             logger.LogError(error, "Database save failed while submitting an idea with a supporting document.");
             ModelState.AddModelError(string.Empty, "The idea could not be saved. Make sure the latest database migration has been applied, then try again.");
+            await PopulateDepartmentsAsync(input.DepartmentId);
             return View(input);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             logger.LogError(error, "Private supporting-document storage failed during idea submission.");
             ModelState.AddModelError(string.Empty, "The supporting document could not be saved. Check the document and try again.");
+            await PopulateDepartmentsAsync(input.DepartmentId);
             return View(input);
         }
         catch (Exception error) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
             logger.LogError(error, "Unexpected failure during idea submission with a supporting document.");
             ModelState.AddModelError(string.Empty, "The idea could not be completed. The error has been logged; please try again or contact an administrator.");
+            await PopulateDepartmentsAsync(input.DepartmentId);
             return View(input);
         }
         logger.LogInformation("Idea submission {ReferenceNumber} completed; redirecting to My ideas.", idea.ReferenceNumber);
@@ -71,10 +79,11 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     [HttpGet]
     public async Task<IActionResult> SupportingDocument(int id)
     {
-        var attachment = await db.IdeaAttachments.Include(x => x.Idea).SingleOrDefaultAsync(x => x.Id == id);
+        var attachment = await db.IdeaAttachments.Include(x => x.Idea).ThenInclude(x => x.Screening).SingleOrDefaultAsync(x => x.Id == id);
         if (attachment is null) return NotFound();
 
-        var isManager = User.IsInRole("InnovateManager");
+        var isManager = User.IsInRole("InnovateManager") &&
+            (attachment.Idea.Screening?.ManagerId == UserId || await db.Departments.AnyAsync(d => d.Id == attachment.Idea.DepartmentId && d.ManagerId == UserId));
         var isOwnerEmployee = User.IsInRole("Employee") && !User.IsInRole("InnovateBoard") && attachment.Idea.SubmitterId == UserId;
         var isAssignedBoardReviewer = User.IsInRole("InnovateBoard") && attachment.Idea.Status == IdeaStatus.BoardEvaluation;
         if (!isManager && !isOwnerEmployee && !isAssignedBoardReviewer) return Forbid();
@@ -89,26 +98,26 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     [Authorize(Roles = "InnovateManager")]
     public async Task<IActionResult> Manager()
     {
-        var requeuedAddenda = await workflow.RequeueUnreviewedAutoAddendaAsync();
+        var requeuedAddenda = await workflow.RequeueUnreviewedAutoAddendaAsync(UserId);
         if (requeuedAddenda > 0)
             TempData["Message"] = $"{requeuedAddenda} unreviewed idea(s) were returned to the monthly addendum queue. Forward them when ready.";
-        var pending = await Rows(db.Ideas.Where(x => x.Status == IdeaStatus.Submitted).OrderBy(x => x.SubmittedAtUtc));
+        var pending = await Rows(db.Ideas.Where(x => x.Status == IdeaStatus.Submitted && x.Department != null && x.Department.ManagerId == UserId).OrderBy(x => x.SubmittedAtUtc));
         // A Shortlisted idea attached to an already-forwarded compilation is a pending
         // addendum. Keep it visible to the manager until they explicitly forward it.
-        var pendingAddenda = await Rows(db.Ideas.Where(x => x.Status == IdeaStatus.Shortlisted && x.MonthlyCompilation != null && x.MonthlyCompilation.ForwardedToBoard).OrderBy(x => x.SubmittedAtUtc));
-        var awaitingBoard = await Rows(db.Ideas.Where(x => x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count < EvaluationRules.RequiredBoardMembers).OrderBy(x => x.SubmittedAtUtc));
-        var ready = await Rows(db.Ideas.Where(x => x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count == EvaluationRules.RequiredBoardMembers && x.Result == null));
-        var repositories = await Rows(db.Ideas.Where(x => x.Result != null));
-        var months = await db.MonthlyCompilations.Include(x => x.Ideas).OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToListAsync();
+        var pendingAddenda = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.Shortlisted && x.MonthlyCompilation != null && x.MonthlyCompilation.ForwardedToBoard).OrderBy(x => x.SubmittedAtUtc));
+        var awaitingBoard = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count < EvaluationRules.RequiredBoardMembers).OrderBy(x => x.SubmittedAtUtc));
+        var ready = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count == EvaluationRules.RequiredBoardMembers && x.Result == null));
+        var repositories = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Result != null));
+        var months = await db.MonthlyCompilations.Where(x => x.CreatedById == UserId).Include(x => x.Ideas).OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToListAsync();
         return View(new ManagerPage(pending, pendingAddenda, awaitingBoard, ready, months, repositories));
     }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "InnovateManager")]
-    public async Task<IActionResult> Screen(int id, bool shortlist, string? rationale, string? boardTitle, string? boardDescription)
+    public async Task<IActionResult> Screen(int id, bool shortlist, string? rationale, string? boardDescription)
     {
         try
         {
-            var addedAsBoardAddendum = await workflow.ScreenAsync(id, UserId, shortlist, rationale, boardTitle, boardDescription);
+            var addedAsBoardAddendum = await workflow.ScreenAsync(id, UserId, shortlist, rationale, boardDescription);
             TempData["Message"] = addedAsBoardAddendum
                 ? "Shortlisted into the already-forwarded monthly compilation. It is waiting for you to forward the addendum."
                 : shortlist ? "Shortlisted for the monthly board compilation." : "Filed in Repository 1.";
@@ -144,8 +153,8 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     [Authorize(Roles = "InnovateManager")]
     public async Task<IActionResult> CompileReview(int id)
     {
-        var idea = await db.Ideas.Include(x => x.Evaluations).Include(x => x.Attachment).SingleOrDefaultAsync(x => x.Id == id);
-        if (idea is null || idea.Status != IdeaStatus.BoardEvaluation || idea.Evaluations.Count != EvaluationRules.RequiredBoardMembers || idea.Result is not null) return NotFound();
+        var idea = await db.Ideas.Include(x => x.Evaluations).Include(x => x.Attachment).Include(x => x.Screening).SingleOrDefaultAsync(x => x.Id == id);
+        if (idea is null || idea.Screening?.ManagerId != UserId || idea.Status != IdeaStatus.BoardEvaluation || idea.Evaluations.Count != EvaluationRules.RequiredBoardMembers || idea.Result is not null) return NotFound();
         var members = await db.Users.ToDictionaryAsync(x => x.Id, x => x.Email ?? x.DisplayName);
         var scores = idea.Evaluations.OrderBy(x => x.BoardMemberId).Select(x => new ScoreLine(members.GetValueOrDefault(x.BoardMemberId, "Board member"), x.Novelty, x.Feasibility, x.Relevance, x.BusinessImpact, x.CommercialViability)).ToList();
         return View(new CompilationReview(new IdeaRow(idea.Id, idea.ReferenceNumber, idea.Title, idea.Description, idea.Status, idea.SubmittedAtUtc, null, idea.Evaluations.Count, null, null, null, null, AttachmentId: idea.Attachment?.Id), scores));
@@ -172,7 +181,9 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
             .OrderBy(x => x.SubmittedAtUtc)
             .Select(x => new BoardIdeaRow(x.Id, x.ReferenceNumber, x.Title, x.Description, x.SubmittedAtUtc,
                 x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id,
-                x.Evaluations.Any(e => e.BoardMemberId == UserId))).ToListAsync();
+                x.Evaluations.Any(e => e.BoardMemberId == UserId),
+                x.Screening == null ? null : x.Screening.BoardFacingDescription,
+                x.Screening == null ? null : x.Screening.Rationale)).ToListAsync();
         return View(items);
     }
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = "InnovateBoard")]
@@ -184,6 +195,9 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
         return RedirectToAction(nameof(Board));
     }
 
+    private async Task PopulateDepartmentsAsync(int? selectedId = null) => ViewBag.Departments = new SelectList(
+        await db.Departments.Where(d => d.ManagerId != null).OrderBy(d => d.Name).Select(d => new { d.Id, d.Name }).ToListAsync(), "Id", "Name", selectedId);
+
     private async Task<IReadOnlyList<IdeaRow>> Rows(IQueryable<Idea> query) => await query
         .Select(x => new IdeaRow(x.Id, x.ReferenceNumber, x.Title, x.Description, x.Status, x.SubmittedAtUtc,
             db.Users.Where(u => u.Id == x.SubmitterId).Select(u => (u.DisplayName != "" ? u.DisplayName : u.Email) + " · " + (u.Designation ?? "Designation not set") + " · " + (u.Location ?? "Location not set")).FirstOrDefault(), x.Evaluations.Count,
@@ -192,5 +206,5 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
             x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id,
             x.Evaluations.Count == EvaluationRules.RequiredBoardMembers
                 ? x.Evaluations.Average(e => (decimal)(e.Novelty + e.Feasibility + e.Relevance + e.BusinessImpact + e.CommercialViability))
-                : (decimal?)null)).ToListAsync();
+                : (decimal?)null, x.Department == null ? null : x.Department.Name)).ToListAsync();
 }

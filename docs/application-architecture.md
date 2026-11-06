@@ -59,9 +59,9 @@ Controllers translate HTTP requests into application operations. They handle rou
 | Controller | Access | Main actions and responsibility |
 | --- | --- | --- |
 | `HomeController` | Signed-in and anonymous | `Index` builds the public home page or a role-aware dashboard. It currently reads dashboard counts from `NamovationDbContext`. `Privacy` and `Error` serve standard pages. |
-| `AccountController` | Anonymous for sign-in/registration; setup requires the pending account's authenticated session; Development-only for first Admin setup | `Login` checks credentials and lockout state, then signs in through Identity. Accounts with authenticator enabled go to `LoginWithAuthenticator`. `Register` creates an account and, when required by Admin settings, starts authenticator enrollment. `SetupAuthenticator` validates the initial TOTP code and enables two-factor sign-in. `SetupFirstAdmin` creates the initial local admin once. |
-| `WorkflowController` | Requires sign-in; individual actions require Employee, InnovateManager, or InnovateBoard | Employee actions: `Mine`, `Submit`. Manager actions: `Manager`, `Screen`, `Forward`, `CompileReview`, `Compile`, `RewardDecision`. Board actions: `Board`, `Evaluate`. |
-| `AdminController` | Admin role only | `Users`, `CreateUser`, and `SetRoles` manage accounts and roles. `RegistrationSettings` reads and saves whether new public registrants must enroll an authenticator. |
+| `AccountController` | Anonymous for sign-in/registration; manager assignment requires Employee; setup requires the pending account's authenticated session; first Admin setup requires Development or the production bootstrap token | `Register` creates an Employee account, optionally records a manager request, and starts authenticator enrollment when required. `ManagerAssignment` lets an employee request or change managers; the requested manager approves or declines from the manager workspace. `SetupFirstAdmin` creates the first admin once. |
+| `WorkflowController` | Requires sign-in; individual actions require Employee, InnovateManager, or InnovateBoard | Employee actions: `Mine`, `Submit` (requires an approved manager assignment). Manager actions: `Manager`, `Screen`, `Forward`, `CompileReview`, `Compile`, `RewardDecision`, and manager-request approval. Manager queries and workflow actions are scoped to their team. Board actions: `Board`, `Evaluate`. |
+| `AdminController` | Admin role only | `Users` and `SetRoles` manage access for self-registered accounts. `RegistrationSettings` reads and saves whether new public registrants must enroll an authenticator. |
 
 Every state-changing MVC action uses POST plus anti-forgery validation. Role attributes enforce access on the server; hiding navigation links is only a UI convenience.
 
@@ -100,10 +100,10 @@ sequenceDiagram
 
 ### Manager screens and forwards ideas
 
-1. `WorkflowController.Manager` queries submitted ideas, monthly batches, ideas ready to compile, and repository results to construct `ManagerPage`.
+1. `WorkflowController.Manager` queries that manager's employee requests, assigned employees' new ideas, owned monthly batches, ideas ready to compile, and that manager's repository results to construct `ManagerPage`.
 2. The manager opens a submission and chooses Repository 1 or Shortlist.
 3. `WorkflowController.Screen` passes the action to `WorkflowService.ScreenAsync`.
-4. The service requires the idea to be `Submitted`. A shortlist requires an anonymized title and description, adds the idea to the compilation for its submission month, and changes status to `Shortlisted`. A non-shortlist is assigned Repository 1.
+4. The service requires the idea to be `Submitted`. A shortlist requires the manager's board-facing description, saves the optional screening note, adds the idea to the compilation for its submission month, and changes status to `Shortlisted`. The board identifies it by reference number and sees these manager fields alongside the employee's submitted details after forwarding. A non-shortlist is assigned Repository 1.
 5. `ForwardMonthAsync` forwards shortlisted ideas in a monthly batch. For an initial forward, it verifies every idea in the batch has been screened, then marks the batch forwarded. If the batch was already forwarded, only newly shortlisted ideas are advanced and the batch remains forwarded; this is the explicit addendum-forward action. In both cases, ideas change to `BoardEvaluation` only after the manager submits that action. Unreviewed ideas that were auto-advanced by the former addendum behavior are returned to `Shortlisted` for explicit forwarding.
 
 ### Board evaluates, manager compiles

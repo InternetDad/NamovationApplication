@@ -8,7 +8,7 @@ using Namovation.Web.Models;
 
 namespace Namovation.Web.Controllers;
 
-public class HomeController(NamovationDbContext db, UserManager<NamovationUser> users, IWebHostEnvironment environment) : Controller
+public class HomeController(NamovationDbContext db, UserManager<NamovationUser> users, IWebHostEnvironment environment, IConfiguration configuration) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -35,14 +35,14 @@ public class HomeController(NamovationDbContext db, UserManager<NamovationUser> 
                 var active = await db.Ideas.CountAsync(x => x.SubmitterId == userId && x.Status != IdeaStatus.Repository1 && x.Status != IdeaStatus.Repository2 && x.Status != IdeaStatus.Repository3);
                 metrics.Add(new("My ideas", total.ToString(), "All submissions"));
                 metrics.Add(new("In progress", active.ToString(), "Moving through review"));
-                shortcuts.Add(new("Submit an idea", "Share an improvement for a process, product, or customer experience.", "Workflow", "Submit", "Start a submission"));
+                shortcuts.Add(new("Submit an idea", "Choose the department for each idea; its manager will review it.", "Workflow", "Submit", "Start a submission"));
                 shortcuts.Add(new("Track my ideas", "See the latest status and any available outcome.", "Workflow", "Mine", "View my ideas"));
             }
             if (!authenticatorSetupPending && User.IsInRole("InnovateManager"))
             {
-                var pending = await db.Ideas.CountAsync(x => x.Status == IdeaStatus.Submitted);
-                var ready = await db.Ideas.CountAsync(x => x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count == EvaluationRules.RequiredBoardMembers && x.Result == null);
-                var preparing = await db.MonthlyCompilations.CountAsync(x => !x.ForwardedToBoard && x.Ideas.Any());
+                var pending = await db.Ideas.CountAsync(x => x.Status == IdeaStatus.Submitted && x.Department != null && x.Department.ManagerId == userId);
+                var ready = await db.Ideas.CountAsync(x => x.Screening != null && x.Screening.ManagerId == userId && x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count == EvaluationRules.RequiredBoardMembers && x.Result == null);
+                var preparing = await db.MonthlyCompilations.CountAsync(x => x.CreatedById == userId && !x.ForwardedToBoard && x.Ideas.Any());
                 metrics.Add(new("To screen", pending.ToString(), "New submissions"));
                 metrics.Add(new("Ready to compile", ready.ToString(), "Three board reviews received"));
                 metrics.Add(new("Monthly batches", preparing.ToString(), "Preparing for the board"));
@@ -57,13 +57,13 @@ public class HomeController(NamovationDbContext db, UserManager<NamovationUser> 
             if (!authenticatorSetupPending && User.IsInRole("Admin"))
             {
                 metrics.Add(new("User accounts", (await users.Users.CountAsync()).ToString(), "Manage accounts and roles"));
-                shortcuts.Add(new("User management", "Create accounts and assign application roles.", "Admin", "Users", "Manage users"));
+                shortcuts.Add(new("User management", "Review self-registered accounts and assign application roles.", "Admin", "Users", "Manage users"));
                 shortcuts.Add(new("Registration settings", "Choose whether new accounts must set up an authenticator app.", "Admin", "RegistrationSettings", "Configure registration"));
             }
         }
 
         var isAnonymous = User.Identity?.IsAuthenticated != true;
-        var showFirstAdminSetup = environment.IsDevelopment()
+        var showFirstAdminSetup = (environment.IsDevelopment() || !string.IsNullOrWhiteSpace(configuration["INITIAL_ADMIN_SETUP_TOKEN"]))
             && isAnonymous
             && (await users.GetUsersInRoleAsync("Admin")).Count == 0;
         return View(new HomeDashboardModel(

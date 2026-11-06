@@ -1,6 +1,6 @@
 @model IReadOnlyList<Namovation.Web.Models.BoardIdeaRow>
 @{ ViewData["Title"] = "Board evaluations"; }
-<div class="page-heading"><div><h1>Board evaluations</h1><p class="text-secondary">Review each forwarded idea, its submitted details, and any supporting document before scoring it independently.</p></div></div>
+<div class="page-heading"><div><h1>Board evaluations</h1><p class="text-secondary">Open an idea by its reference number to review the employee’s original submission and the manager’s screening perspective before scoring.</p></div></div>
 @if (TempData["Message"] is string msg) { <div class="alert alert-success">@msg</div> }
 @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
 @if (Model.Count == 0) {
@@ -31,6 +31,13 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                        @if (!string.IsNullOrWhiteSpace(idea.ManagerDescription) || !string.IsNullOrWhiteSpace(idea.ManagerNote)) {
+                            <section class="card card-body mb-3">
+                                <h3 class="h6 mb-2">Manager’s review</h3>
+                                @if (!string.IsNullOrWhiteSpace(idea.ManagerDescription)) { <div class="mb-2"><strong>Manager’s description</strong><p class="text-prewrap mb-0">@idea.ManagerDescription</p></div> }
+                                @if (!string.IsNullOrWhiteSpace(idea.ManagerNote)) { <div><strong>Manager’s screening note</strong><p class="text-prewrap mb-0">@idea.ManagerNote</p></div> }
+                            </section>
+                        }
                         <dl class="row idea-detail-list">
                             @if (!string.IsNullOrWhiteSpace(idea.ProblemStatement)) { <dt class="col-sm-4">Problem or opportunity</dt><dd class="col-sm-8 text-prewrap">@idea.ProblemStatement</dd> }
                             <dt class="col-sm-4">Idea details</dt><dd class="col-sm-8 text-prewrap">@idea.Description</dd>

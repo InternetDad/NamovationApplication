@@ -1,6 +1,6 @@
 # Namovation database design
 
-This document describes the schema currently implemented by the EF Core model and `InitialPostgresSchema` migration. PostgreSQL stores the application data; ASP.NET Core Identity tables store users and role assignments.
+This document describes the schema currently implemented by the EF Core model and PostgreSQL migrations. PostgreSQL stores the application data; ASP.NET Core Identity tables store users and role assignments.
 
 ## Entity relationship diagram
 
@@ -8,6 +8,8 @@ This document describes the schema currently implemented by the EF Core model an
 erDiagram
     AspNetUsers ||--o{ AspNetUserRoles : assigned
     AspNetRoles ||--o{ AspNetUserRoles : includes
+    AspNetUsers o|--o{ AspNetUsers : manages
+    AspNetUsers o|--o{ AspNetUsers : requested_manager
 
     MonthlyCompilations o|--o{ Ideas : groups
     Ideas ||--o| Screenings : screened_once
@@ -29,6 +31,8 @@ erDiagram
         text Designation
         text Location
         text PasswordHash
+        text AssignedManagerId FK
+        text RequestedManagerId FK
     }
     AspNetRoles {
         text Id PK
@@ -107,13 +111,13 @@ erDiagram
 
 | Table | Purpose in the workflow |
 | --- | --- |
-| `AspNetUsers` | Identity accounts, password hashes, email, display name, designation, and location. Passwords are stored as hashes by Identity. |
+| `AspNetUsers` | Identity accounts, password hashes, email, display name, designation, location, current manager, and pending manager request. Passwords are stored as hashes by Identity. |
 | `AspNetRoles` | The named application roles: Employee, InnovateManager, InnovateBoard, and Admin. |
 | `AspNetUserRoles` | Join table mapping users to roles. Its composite primary key `(UserId, RoleId)` prevents duplicate membership. |
-| `MonthlyCompilations` | One monthly batch of shortlisted ideas. The unique `(Year, Month)` index ensures at most one batch per month; `ForwardedToBoard` records whether it was sent. |
+| `MonthlyCompilations` | A manager's monthly batch of shortlisted ideas. The unique `(Year, Month, CreatedById)` index allows a separate batch per manager each month; `ForwardedToBoard` records whether it was sent. |
 | `Ideas` | The canonical/original employee submission and its current status. Optional `MonthlyCompilationId` associates a shortlisted idea with its month. |
 | `IdeaAttachments` | Optional one-per-idea metadata for a supporting document. File contents are stored under `Namovation.Web/App_Data/IdeaDocuments`, outside the public static-file folder; the database stores the random storage name and display metadata. Employees and managers can download it; board members can download it while the idea is in `BoardEvaluation`. |
-| `Screenings` | The manager's one screening decision per idea, rationale, and board-facing title/description. It is separate from the original submission so the manager's review text does not overwrite applicant-submitted text. |
+| `Screenings` | The manager's one screening decision per idea, optional note, and board-facing description. These remain separate from the original submission. The legacy `BoardFacingTitle` column is retained but unused. |
 | `BoardEvaluations` | One board member's five scores and submission time for one idea. Multiple rows preserve independent evaluations. |
 | `IdeaCompilations` | The manager's compiled average and final eligibility/meeting/repository fields. This is separate from the individual board scores. |
 | `IdeaStatusEvents` | Status-change history with actor ID, time, and optional note, retained alongside the current status on `Ideas`. |
@@ -130,6 +134,8 @@ erDiagram
 - `RegistrationSettings` is a singleton configuration record, constrained to `Id = 1`; it has no foreign-key relation to workflow rows. The update actor is stored as an Identity user ID string, as with other workflow actor fields.
 - Identity stores authenticator keys and recovery codes in `AspNetUserTokens`, keyed by user, provider, and token name. A registration-pending marker also uses that table; no custom OTP storage table is needed.
 - A **user** can hold multiple roles, and a **role** can be assigned to many users. `AspNetUserRoles` implements this many-to-many relationship with foreign keys to both Identity tables.
+- A self-registering user receives the Employee role. `AssignedManagerId` stores the approved manager, while `RequestedManagerId` stores a pending request. Each field references another Identity user; managers approve requests from their workspace. An employee can register without selecting a manager and request one later.
+- Managers see new submissions only from employees currently assigned to them. Screened ideas remain with the manager who screened them, and monthly batches are separate by manager.
 
 ## How the schema enforces workflow rules
 

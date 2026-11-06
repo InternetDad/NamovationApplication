@@ -4,6 +4,15 @@ public enum IdeaStatus { Submitted, Shortlisted, BoardEvaluation, Compiled, Repo
 public enum RepositoryKind { Repository1 = 1, Repository2 = 2, Repository3 = 3 }
 public enum RewardOutcome { Pending, Rewarded, Appreciated, NotSelected }
 
+public sealed class Department
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string NormalizedName { get; set; } = "";
+    public string ManagerId { get; set; } = "";
+    public List<Idea> Ideas { get; set; } = [];
+}
+
 public sealed class Idea
 {
     public int Id { get; set; }
@@ -13,6 +22,8 @@ public sealed class Idea
     public string? ProblemStatement { get; set; }
     public string? ProposedBenefit { get; set; }
     public string SubmitterId { get; set; } = "";
+    public int? DepartmentId { get; set; }
+    public Department? Department { get; set; }
     public DateTime SubmittedAtUtc { get; set; } = DateTime.UtcNow;
     public IdeaStatus Status { get; set; } = IdeaStatus.Submitted;
     public int? MonthlyCompilationId { get; set; }

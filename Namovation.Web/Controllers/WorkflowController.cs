@@ -107,7 +107,10 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
         var pendingAddenda = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.Shortlisted && x.MonthlyCompilation != null && x.MonthlyCompilation.ForwardedToBoard).OrderBy(x => x.SubmittedAtUtc));
         var awaitingBoard = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count < EvaluationRules.RequiredBoardMembers).OrderBy(x => x.SubmittedAtUtc));
         var ready = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Status == IdeaStatus.BoardEvaluation && x.Evaluations.Count == EvaluationRules.RequiredBoardMembers && x.Result == null));
-        var repositories = await Rows(db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Result != null));
+        var repositoryIdeas = db.Ideas.Where(x => x.Screening != null && x.Screening.ManagerId == UserId && x.Result != null);
+        var repositories = (await Rows(repositoryIdeas.Where(x => x.Result!.Repository != RepositoryKind.Repository3)))
+            .Concat(await Rows(repositoryIdeas.Where(x => x.Result!.Repository == RepositoryKind.Repository3), includeEmployeeDetails: true))
+            .ToList();
         var months = await db.MonthlyCompilations.Where(x => x.CreatedById == UserId).Include(x => x.Ideas).OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToListAsync();
         return View(new ManagerPage(pending, pendingAddenda, awaitingBoard, ready, months, repositories));
     }
@@ -198,9 +201,9 @@ public sealed class WorkflowController(NamovationDbContext db, IWorkflowService 
     private async Task PopulateDepartmentsAsync(int? selectedId = null) => ViewBag.Departments = new SelectList(
         await db.Departments.Where(d => d.ManagerId != null).OrderBy(d => d.Name).Select(d => new { d.Id, d.Name }).ToListAsync(), "Id", "Name", selectedId);
 
-    private async Task<IReadOnlyList<IdeaRow>> Rows(IQueryable<Idea> query) => await query
+    private async Task<IReadOnlyList<IdeaRow>> Rows(IQueryable<Idea> query, bool includeEmployeeDetails = false) => await query
         .Select(x => new IdeaRow(x.Id, x.ReferenceNumber, x.Title, x.Description, x.Status, x.SubmittedAtUtc,
-            db.Users.Where(u => u.Id == x.SubmitterId).Select(u => (u.DisplayName != "" ? u.DisplayName : u.Email) + " · " + (u.Designation ?? "Designation not set") + " · " + (u.Location ?? "Location not set")).FirstOrDefault(), x.Evaluations.Count,
+            includeEmployeeDetails ? db.Users.Where(u => u.Id == x.SubmitterId).Select(u => (u.DisplayName != "" ? u.DisplayName : u.Email) + " · " + (u.Designation ?? "Designation not set") + " · " + (u.Location ?? "Location not set")).FirstOrDefault() : null, x.Evaluations.Count,
             x.Result == null ? null : x.Result.AverageTotal, x.Result == null ? null : x.Result.RewardEligible,
             x.Result == null ? null : x.Result.RewardOutcome, x.Result == null ? null : x.Result.Repository,
             x.ProblemStatement, x.ProposedBenefit, x.Attachment == null ? null : x.Attachment.Id,

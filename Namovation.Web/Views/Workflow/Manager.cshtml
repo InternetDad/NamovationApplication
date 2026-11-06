@@ -7,16 +7,14 @@
     @if (Model.Pending.Count > 0) {
         <div class="table-responsive card manager-submission-grid">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Reference</th><th>Employee</th><th>Department</th><th>Idea</th><th>Submitted</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                <thead><tr><th>Reference</th><th>Idea</th><th>Department</th><th>Submitted</th><th class="text-end">Action</th></tr></thead>
                 <tbody>
                 @foreach (var idea in Model.Pending) {
                     <tr>
                         <td class="text-nowrap">@idea.ReferenceNumber</td>
-                        <td>@idea.Submitter</td>
-                        <td>@idea.DepartmentName</td>
                         <td class="manager-grid-title">@idea.Title</td>
+                        <td>@idea.DepartmentName</td>
                         <td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
-                        <td><span class="badge text-bg-light">Submitted</span></td>
                         <td class="text-end"><button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#screenIdea-@idea.Id">Review idea</button></td>
                     </tr>
                 }
@@ -33,17 +31,16 @@
                         </div>
                         <div class="modal-body">
                             <dl class="row idea-detail-list">
-                                <dt class="col-sm-4">Submitted by</dt><dd class="col-sm-8">@idea.Submitter</dd>
                                 @if (!string.IsNullOrWhiteSpace(idea.ProblemStatement)) { <dt class="col-sm-4">Problem or opportunity</dt><dd class="col-sm-8 text-prewrap">@idea.ProblemStatement</dd> }
                                 <dt class="col-sm-4">Idea details</dt><dd class="col-sm-8 text-prewrap">@idea.Description</dd>
                                 @if (!string.IsNullOrWhiteSpace(idea.ProposedBenefit)) { <dt class="col-sm-4">Expected benefit</dt><dd class="col-sm-8 text-prewrap">@idea.ProposedBenefit</dd> }
-                                @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download attachment</a><span class="small text-secondary ms-2">Board members can access it after the idea is forwarded for evaluation.</span></dd> }
+                                @if (idea.AttachmentId is int attachmentId) { <dt class="col-sm-4">Supporting document</dt><dd class="col-sm-8"><a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download attachment</a></dd> }
                             </dl>
                             <hr />
                             <form asp-action="Screen" method="post" id="screenForm-@idea.Id">
                                 <input type="hidden" name="id" value="@idea.Id" />
                                 <h3 class="h5">Manager screening</h3>
-                                <p class="text-secondary small">The board identifies the idea by its reference number. Keep the applicant’s original title and details intact; add your description and note below so board members can read your screening perspective alongside the original submission.</p>
+                                <p class="text-secondary small">The board identifies the idea by its reference number. Review the original submission and add your description and note for board members. Employee identity is withheld until Repository 3.</p>
                                 <label class="form-label" for="boardDescription-@idea.Id">Manager description for the board</label>
                                 <textarea id="boardDescription-@idea.Id" name="boardDescription" class="form-control mb-3" rows="4" placeholder="Add context or your assessment for board members"></textarea>
                                 <label class="form-label" for="screeningNote-@idea.Id">Manager screening note (optional)</label>
@@ -63,9 +60,9 @@
 </section>
 @if (Model.PendingAddenda.Count > 0) {
 <section class="mb-5"><h2>Shortlisted addenda awaiting your approval <span class="counter">@Model.PendingAddenda.Count</span></h2>
-    <p class="text-secondary">These ideas belong to a monthly compilation that was already forwarded. Review them here, then use that month’s “Forward addendum” action below to send them to the board.</p>
-    <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Submitted</th><th>Status</th></tr></thead><tbody>
-    @foreach (var idea in Model.PendingAddenda) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td><span class="badge text-bg-light">Waiting for manager to forward</span></td></tr> }
+    <p class="text-secondary">These references belong to a monthly compilation that was already forwarded. Use that month’s “Forward addendum” action below to send them to the board.</p>
+    <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Status</th></tr></thead><tbody>
+    @foreach (var idea in Model.PendingAddenda) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td><span class="badge text-bg-light">Waiting for manager to forward</span></td></tr> }
     </tbody></table></div>
 </section>
 }
@@ -85,8 +82,8 @@
     <p class="text-secondary">Forwarded ideas stay here while board members submit their independent scores. They move to “Ready to compile” after all three evaluations are received.</p>
     @if (Model.AwaitingBoardEvaluation.Count == 0) { <p class="text-secondary">No forwarded ideas are waiting for board evaluations.</p> }
     @if (Model.AwaitingBoardEvaluation.Count > 0) {
-        <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Submitted</th><th>Board evaluations</th><th>Status</th></tr></thead><tbody>
-        @foreach (var idea in Model.AwaitingBoardEvaluation) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td class="text-nowrap">@idea.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td><strong>@idea.EvaluationCount / @Namovation.Domain.EvaluationRules.RequiredBoardMembers</strong></td><td><span class="badge text-bg-light">Forwarded to board</span></td></tr> }
+        <div class="table-responsive card"><table class="table table-hover align-middle mb-0"><thead><tr><th>Reference</th><th>Idea</th><th>Board evaluations</th><th>Status</th></tr></thead><tbody>
+        @foreach (var idea in Model.AwaitingBoardEvaluation) { <tr><td class="text-nowrap">@idea.ReferenceNumber</td><td>@idea.Title</td><td><strong>@idea.EvaluationCount / @Namovation.Domain.EvaluationRules.RequiredBoardMembers</strong></td><td><span class="badge text-bg-light">Forwarded to board</span></td></tr> }
         </tbody></table></div>
     }
 </section>
@@ -135,11 +132,11 @@
                 <div class="modal-content">
                     <div class="modal-header"><div><p class="eyebrow mb-1">IDEA ARCHIVE · @matches.Count ITEMS</p><h2 class="modal-title fs-4 mb-0" id="repositoryDetailsLabel-@n">Repository @n</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                     <div class="modal-body">
-                        <div class="table-responsive repository-details-grid"><table class="table table-hover align-middle"><thead><tr><th>Reference</th><th>Idea and details</th><th>Submitted by</th><th>Submitted</th><th>Score</th><th>@outcomeHeading</th><th>Document</th></tr></thead><tbody>
+                        <div class="table-responsive repository-details-grid"><table class="table table-hover align-middle"><thead><tr><th>Reference</th><th>Idea and details</th>@if (n == 3) { <th>Submitted by</th> }<th>Submitted</th><th>Score</th><th>@outcomeHeading</th><th>Document</th></tr></thead><tbody>
                         @foreach (var item in matches) {
                             var score = n == 1 ? "Not evaluated" : item.AverageTotal.HasValue ? $"{item.AverageTotal:0.00}/50" : "—";
                             var outcome = n == 1 ? "Not shortlisted" : n == 2 ? "Below 40/50" : item.RewardOutcome?.ToString() ?? "—";
-                            <tr><td class="text-nowrap">@item.ReferenceNumber</td><td class="repository-idea-cell"><strong>@item.Title</strong><p>@item.Description</p>@if (!string.IsNullOrWhiteSpace(item.ProposedBenefit)) { <small><b>Expected benefit:</b> @item.ProposedBenefit</small> }</td><td>@item.Submitter</td><td class="text-nowrap">@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-nowrap">@score</td><td>@outcome</td><td>@if (item.AttachmentId is int attachmentId) { <a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download</a> } else { <span class="text-secondary">—</span> }</td></tr>
+                            <tr><td class="text-nowrap">@item.ReferenceNumber</td><td class="repository-idea-cell"><strong>@item.Title</strong><p>@item.Description</p>@if (!string.IsNullOrWhiteSpace(item.ProblemStatement)) { <small class="d-block"><b>Problem or opportunity:</b> @item.ProblemStatement</small> }@if (!string.IsNullOrWhiteSpace(item.ProposedBenefit)) { <small><b>Expected benefit:</b> @item.ProposedBenefit</small> }</td>@if (n == 3) { <td>@item.Submitter</td> }<td class="text-nowrap">@item.SubmittedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td class="text-nowrap">@score</td><td>@outcome</td><td>@if (item.AttachmentId is int attachmentId) { <a class="btn btn-sm btn-outline-primary" asp-action="SupportingDocument" asp-route-id="@attachmentId">Download</a> } else { <span class="text-secondary">—</span> }</td></tr>
                         }
                         </tbody></table></div>
                     </div>
